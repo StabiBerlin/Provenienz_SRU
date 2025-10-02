@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.14.17"
+__generated_with = "unknown"
 app = marimo.App(width="medium")
 
 
@@ -29,7 +29,7 @@ def _(mo):
 @app.cell
 def _():
     # import necessary libraries
-    import marimo as mo
+    import marimo as mo 
     import requests
     import xml.etree.ElementTree as ET
     import unicodedata
@@ -58,7 +58,6 @@ def _(mo):
 def _(mo):
     # define variable and ui-element for query text with index-terms
     text = mo.ui.text(placeholder="Suchstring", label="Alternativ: Suchstring (z.B.: 'pica.prk=Sammlung Jochen Früh AND pica.tit=Cand*')")
-
     return (text,)
 
 
@@ -81,7 +80,6 @@ def _(mo):
 @app.cell
 def _(einstieg, mo, querytext, text):
     mo.hstack([mo.vstack([einstieg, querytext]),text])
-
     return
 
 
@@ -95,7 +93,6 @@ def _(einstieg, querytext, text):
 
     elif text.value != "":
         query = text.value
-
 
     return (query,)
 
@@ -122,7 +119,7 @@ def _(etree, requests, urlencode):
         except (AttributeError):
             print(response.request.url)
             raise ValueError("Kein numberOfRecords-Element in der Antwort -- Fehler in der Anfrage?")
-        
+
         return number_of_records    
     return (get_nr_of_records,)
 
@@ -194,15 +191,15 @@ def _(etree, requests, second_button, urlencode):
 def _(mo, nr_of_records):
     mo.stop(nr_of_records <1)
 
-    first_button = mo.ui.run_button(label="Hole alle Ergebnisse")
-    second_button = mo.ui.run_button(label="Hole die ersten 100 Ergebnisse")
-    mo.vstack([first_button, second_button])
-    return first_button, second_button
+    hundred_button = mo.ui.run_button(label="Hole die ersten 100 Ergebnisse")
+    all_button = mo.ui.run_button(label="Hole alle Ergebnisse")
+    mo.vstack([all_button, hundred_button])
+    return all_button, hundred_button
 
 
 @app.cell
-def _(first_button, mo, query, query_sru, second_button):
-    mo.stop(first_button.value == False and second_button.value==False)
+def _(all_button, hundred_button, mo, query, query_sru):
+    mo.stop(all_button.value == False and hundred_button.value==False)
     records = query_sru(query)
     records_loaded = len(records)    
     mo.md(f"""Es wurden **{records_loaded}** Ergebnisse geladen
@@ -229,7 +226,6 @@ def _(ET, etree, records, unicodedata):
 
     # get unique exemplare
     unique_exemplare = set(all_ex)
-
 
     return (unique_exemplare,)
 
@@ -278,7 +274,7 @@ def _(ET, etree, unicodedata):
 def _(parse_record, pd, records):
     output = [parse_record(record) for record in records]
     df = pd.DataFrame(output)
-    df
+    df.head
     return
 
 
@@ -347,7 +343,6 @@ def _(chart_names, mo):
     In Marimo lassen sich aus den Tabellen (bzw. Dataframes) direkt in der Oberfläche der App-Ansicht Visualisierungen generieren; hier bspw. eine Visualisierung auf Basis der in den Provenienzinformationen vorkommenden Namen.'''
 
     mo.md(content)
-
     return
 
 
@@ -428,4 +423,3 @@ def _(df_ex):
 
 if __name__ == "__main__":
     app.run()
-
