@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "unknown"
+__generated_with = "0.16.4"
 app = marimo.App(width="medium")
 
 
@@ -93,7 +93,6 @@ def _(einstieg, querytext, text):
 
     elif text.value != "":
         query = text.value
-
     return (query,)
 
 
@@ -132,7 +131,7 @@ def _(get_nr_of_records, mo, query):
 
     Zunächst wird abgefragt, wie viele Treffer ihre Suche liefert. Im Folgenden Schritt können die Daten zu den einzelnen Treffern geladen werden. 
 
-    **Beachten Sie**: Je nach Menge der Treffer kann dies eine Weile dauern. Für einen ersten Eindruck haben Siedie Möglichkeit, nur die ersten 100 Treffer zu laden. Beachten Sie bitte auch, dass jede Abfrage die Schnittstelle belastet und führen Sie nur Abfragen durch, die Sie für Ihre Arbeit benötigen.
+    **Beachten Sie**: Je nach Menge der Treffer kann dies eine Weile dauern. Für einen ersten Eindruck haben Sie die Möglichkeit, nur die ersten 100 Treffer zu laden. Beachten Sie bitte auch, dass jede Abfrage die Schnittstelle belastet und führen Sie nur Abfragen durch, die Sie für Ihre Arbeit benötigen.
 
     """
     )
@@ -140,48 +139,46 @@ def _(get_nr_of_records, mo, query):
 
 
 @app.cell
-def _(etree, requests, second_button, urlencode):
-    def query_sru(query):
+def _(etree, requests, urlencode):
+    def query_sru(query, max_records=100):
         base_url = "https://sru.k10plus.de/opac-de-627"
         params = {
             'recordSchema': 'marcxml',
             'operation': 'searchRetrieve',
             'version': '1.1',
-            'maximumRecords': '100',
+            'maximumRecords': '100',   # maximum allowed per request
+            'startRecord': 1,
             'query': query
         }
 
         all_records = []
+        records_to_fetch = max_records
 
-        while True:
+        while records_to_fetch > 0:
+            batch_size = min(records_to_fetch, 100)  # fetch up to 100 each time
+            params['maximumRecords'] = str(batch_size)
+            params['startRecord'] = str(len(all_records) + 1)
+
             query_string = urlencode(params, safe='+')
             response = requests.get(base_url + '?' + query_string)
 
-            # Print the URL for debugging
-            print(response.url)
+            print(response.url)  # for debugging
 
             content = response.content
 
             parser = etree.XMLParser(recover=True)
             root = etree.fromstring(content, parser)
 
-            # Get the number of records
-            number_of_records = int(root.find('.//{http://www.loc.gov/zing/srw/}numberOfRecords').text)
+            # Find records in this batch
+            batch_records = root.findall('.//{http://www.loc.gov/MARC21/slim}record')
 
+            all_records.extend(batch_records)
 
-            # Find all <record> elements
-            records = root.findall('.//{http://www.loc.gov/MARC21/slim}record')
+            records_to_fetch -= batch_size
 
-            # Add the current records to the list
-            all_records.extend(records)
-            if second_button.value == True:
+            # Stop if no more records returned (end of data)
+            if not batch_records:
                 break
-            # Check if we have retrieved all records
-            if len(all_records) >= number_of_records:
-                break
-
-            # Update the startRecord parameter for the next request
-            params['startRecord'] = len(all_records) + 1  # Start from the next record
 
         return all_records
     return (query_sru,)
@@ -191,20 +188,54 @@ def _(etree, requests, second_button, urlencode):
 def _(mo, nr_of_records):
     mo.stop(nr_of_records <1)
 
-    hundred_button = mo.ui.run_button(label="Hole die ersten 100 Ergebnisse")
     all_button = mo.ui.run_button(label="Hole alle Ergebnisse")
-    mo.vstack([all_button, hundred_button])
-    return all_button, hundred_button
+    hundred_button = mo.ui.run_button(label="Hole die ersten 100 Ergebnisse")
+    mo.vstack([hundred_button, all_button])
+
+    # Slider to select number of records in 100-step increments, max capped at 10000 for usability
+    max_limit_slider = mo.ui.slider(
+        start=100, 
+        stop=min(nr_of_records, nr_of_records), 
+        value=100, 
+        step=100, 
+        label="Anzahl der Ergebnisse (in 100er Schritten)")
+
+    load_slider_button = mo.ui.run_button(label="Ergebnisse laden")
+
+    # Arrange buttons and slider side by side
+    mo.hstack([
+        mo.vstack([hundred_button, all_button]),
+        mo.vstack([max_limit_slider, load_slider_button])
+    ])
+    return all_button, hundred_button, load_slider_button, max_limit_slider
 
 
 @app.cell
-def _(all_button, hundred_button, mo, query, query_sru):
-    mo.stop(all_button.value == False and hundred_button.value==False)
-    records = query_sru(query)
-    records_loaded = len(records)    
+def _(
+    all_button,
+    hundred_button,
+    load_slider_button,
+    max_limit_slider,
+    mo,
+    nr_of_records,
+    query,
+    query_sru,
+):
+    mo.stop(
+        not (hundred_button.value or all_button.value or load_slider_button.value)
+    )
+    if hundred_button.value:
+        records = query_sru(query, 100)
+    elif all_button.value:
+        records = query_sru(query, nr_of_records)
+    elif load_slider_button.value:
+        records = query_sru(query, max_limit_slider.value)
+
+    records_loaded = len(records)
+
     mo.md(f"""Es wurden **{records_loaded}** Ergebnisse geladen
 
-    Bei den geladenen Ergebnissen handelt es sich – egal, welchen Sucheinstieg Sie gewählt haben -- um Titeldaten, also bibliographische Angaben, zu den Titel (Manifestationen), die Ihre Suchabfrage liefert. 
+    Bei den geladenen Ergebnissen handelt es sich – egal, welchen Sucheinstieg Sie gewählt haben – um Titeldaten, also bibliographische Angaben, zu den Titel (Manifestationen), die Ihre Suchabfrage liefert. 
     """      
     )    
     return (records,)
@@ -226,12 +257,11 @@ def _(ET, etree, records, unicodedata):
 
     # get unique exemplare
     unique_exemplare = set(all_ex)
-
     return (unique_exemplare,)
 
 
 @app.cell
-def _(ET, etree, unicodedata):
+def func_parse(ET, etree, pd, unicodedata):
     def parse_record(record):
 
         ns = {"marc":"http://www.loc.gov/MARC21/slim"}
@@ -243,29 +273,41 @@ def _(ET, etree, unicodedata):
         Idn = xml.xpath("marc:controlfield[@tag = '001']", namespaces=ns)
         try:
             Idn = Idn[0].text
+            URL = f"https://opac.k10plus.de/DB=2.299/PPNSET?PPN={Idn}&PRS=HOL&INDEXSET=21"
         except:
-            Idn = 'none'
+            Idn = pd.NA
+            URL = pd.NA
+    
 
         # Titel
         title = xml.xpath("marc:datafield[@tag = '245']/marc:subfield[@code='a']", namespaces=ns)
         try:
             title = title[0].text
         except:
-            title = 'none'
+            title = pd.NA
 
         # Autor #100-subfield4=aut
         aut = xml.xpath("marc:datafield[@tag = '100']/marc:subfield[@code='4']", namespaces=ns)
-        print(aut)
         try: 
             if aut[0].text == "aut":
                 author = xml.xpath("marc:datafield[@tag ='100']/marc:subfield[@code='a']", namespaces=ns)
             author = author[0].text
         except:
-            author = 'none'
+            author = pd.NA
 
+        # Jahr controlfield 008
+        year = xml.xpath("marc:controlfield[@tag = '008']", namespaces=ns)
+        try:
+            year = year[0].text[7:11]  # Extract year substring from position 7 to 11 (yyyy format)]
+        except:
+            year = pd.NA
+        
+    
         meta_dict = {"PPN":Idn,
                     "Titel":title,
-                    "Autor":author}
+                    "Autor":author,
+                    "Jahr": year,
+                    "URL": URL}
         return meta_dict
     return (parse_record,)
 
@@ -274,17 +316,18 @@ def _(ET, etree, unicodedata):
 def _(parse_record, pd, records):
     output = [parse_record(record) for record in records]
     df = pd.DataFrame(output)
-    df.head
+
+    df
     return
 
 
 @app.cell
-def _(mo, unique_exemplare):
+def _(df_ex, mo, unique_exemplare):
     mo.md(
         f"""
-    Das Ergebnisset enthält Provenienzinformationen zu **{len(unique_exemplare)} Exemplaren**
+    Das Ergebnisset enthält **{len(df_ex)} Aussagen** zur Provenienz, die sich auf **{len(unique_exemplare)} Exemplare** beziehen.
 
-    Wenn Sie eine Titelsuche ausgeführt haben, kann es sein, dass keine Provenienzinformationen ausgegeben werden -- in diesem Fall sind schlicht zu den gefundenen Titeln keine Provenienzinformationen hinterlegt. 
+    Wenn Sie eine Titelsuche ausgeführt haben, kann es sein, dass keine Provenienzinformationen ausgegeben werden – in diesem Fall sind schlicht zu den gefundenen Titeln keine Provenienzinformationen hinterlegt. 
 
     Es ist auch möglich, dass Sie mehr Ergebnisse zu Exemplaren erhalten als zu den Titeldaten. Dies ist dann der Fall, wenn zu einem Titel mehrere Exemplare vorliegen.
 
@@ -302,16 +345,34 @@ def _(ET, etree, unicodedata):
         record_str = ET.tostring(record, encoding='unicode')
 
         xml = etree.fromstring(unicodedata.normalize("NFC", record_str))
+    
+        # Extract the ID once per record
+        controlfield_001 = xml.xpath("marc:controlfield[@tag='001']", namespaces=ns)
+        record_id = controlfield_001[0].text if controlfield_001 else None
 
+        # Extract the Title once per record
+        title_field =xml.xpath("marc:datafield[@tag = '245']/marc:subfield[@code='a']", namespaces=ns)
+        title = title_field[0].text if title_field else None
+    
         data = []
         for field361 in xml.findall("marc:datafield[@tag='361']", namespaces=ns):
             row_data = {}
             for subfield in field361.findall("marc:subfield", namespaces=ns):
                 code = subfield.get("code")
                 text = subfield.text
+
+                if code == "0":
+                    if text is not None and text.startswith("(DE-588"):
+                        row_data[code] = text
+                    else:
+                        continue
+                  
                 row_data[code] = text  # Use the subfield code directly as the column name
 
             data.append(row_data)
+            row_data["PPN"] = record_id
+            row_data["Titel"] = title
+            row_data["URL"] = f"https://opac.k10plus.de/DB=2.299/PPNSET?PPN={record_id}&PRS=HOL&INDEXSET=21"
 
         return data
     return (parse_ex,)
@@ -325,12 +386,75 @@ def _(parse_ex, pd, records):
     # Create the DataFrame
     df_ex = pd.DataFrame(prov_statements)
     df_ex= df_ex.rename(columns={"5":"Institution", "y": "EPN", "s": "Signatur", "o":"Typ", "a": "Name", "0":"Normdatum", "f":"Provenienzbegriff", "z": "Notiz", "u":"URI", "k":"Datum"})
-    df_ex
+
+    # add URLs for GND
+    df_ex["Normdatum"] = df_ex["Normdatum"].apply(
+        lambda x: f"https://explore.gnd.network/gnd/{x.split(")",1)[1].strip()}" if pd.notna(x) else None
+    )
+
+    # Reorder df_ex to have 'Title', 'PPN' and 'URL' as the last columns
+    # Desired columns to move to the end
+    cols_end = ["Titel", "URL", "PPN"]
+    # Create list of columns excluding those to move
+    cols_start = [col for col in df_ex.columns if col not in cols_end]
+
+    # Combine, putting desired columns at the end in order
+    df_ex = df_ex[cols_start + cols_end]
+
     return (df_ex,)
 
 
 @app.cell
-def _():
+def _(df_ex, etree, requests):
+    def fetch_institution_name(inst_id):
+        base_url = "https://services.dnb.de/sru/bib"
+        params = {
+            "version": "1.1",
+            "operation": "searchRetrieve",
+            "query": f"isil={inst_id}",
+            "recordSchema": "PicaPlus-xml"
+        }
+        response = requests.get(base_url, params=params)
+        if response.status_code != 200:
+            return inst_id # as fallback
+
+        parser = etree.XMLParser(recover=True)
+        xml = etree.fromstring(response.content, parser=parser)
+
+        # Define namespace for ppxml elements if any; here assuming default (adjust if needed)
+        ns = {"ppxml": "http://www.oclcpica.org/xmlns/ppxml-1.0"}    
+        name_field = xml.xpath('.//ppxml:tag[@id="029A"]/ppxml:subf[@id="a"]', namespaces=ns)
+        name = name_field[0].text
+        if name_field:
+            return name
+        else:
+            return inst_id
+
+    # Cache dictionary for institution IDs to names
+    inst_cache = {}
+
+    # Get unique Institution IDs from df_ex
+    unique_ids = df_ex["Institution"].unique()
+
+    # Fetch names for all unique IDs not in cache yet
+    for inst_id in unique_ids:
+        if inst_id not in inst_cache and inst_id is not None:
+            inst_cache[inst_id] = fetch_institution_name(inst_id)
+
+    # Map the IDs in df_ex["Institution"] to Names using cache
+    df_ex["Institution"] = df_ex["Institution"].map(inst_cache).fillna(df_ex["Institution"])
+    return (inst_cache,)
+
+
+@app.cell
+def _(inst_cache):
+    print(inst_cache)
+    return
+
+
+@app.cell
+def _(df_ex):
+    df_ex
     return
 
 
@@ -416,9 +540,22 @@ def _(df_ex_next, mo):
 @app.cell
 def _(df_ex):
     df_ex_next = df_ex
-    df_ex_next = df_ex_next[(df_ex_next["Institution"].eq("DE-1")) & (df_ex_next["Provenienzbegriff"].eq("Stempel")) & (df_ex_next["Notiz"].notna())]
+    df_ex_next = df_ex_next[(df_ex_next["Institution"].eq("Staatsbibliothek zu Berlin - Preußischer Kulturbesitz, Haus Unter den Linden")) & (df_ex_next["Provenienzbegriff"].eq("Stempel")) & (df_ex_next["Notiz"].notna())]
     df_ex_next
     return (df_ex_next,)
+
+
+@app.cell
+def _(df_ex, mo):
+    # Use mo.ui.data_explorer to provide an interactive way to explore the provenance exemplar data
+
+
+    explorer = mo.ui.data_explorer(df_ex)
+
+    title = mo.md("### Data explorer")
+    combined = mo.vstack([title, explorer])
+    combined
+    return
 
 
 if __name__ == "__main__":
