@@ -139,6 +139,58 @@ def _(get_nr_of_records, mo, query):
 
 
 @app.cell
+def func_parse(ET, etree, pd, unicodedata):
+    def parse_record(record):
+
+        ns = {"marc":"http://www.loc.gov/MARC21/slim"}
+        record_str = ET.tostring(record, encoding='unicode')
+
+        xml = etree.fromstring(unicodedata.normalize("NFC", record_str))
+
+        #Idn
+        Idn = xml.xpath("marc:controlfield[@tag = '001']", namespaces=ns)
+        try:
+            Idn = Idn[0].text
+            URL = f"https://opac.k10plus.de/DB=2.299/PPNSET?PPN={Idn}&PRS=HOL&INDEXSET=21"
+        except:
+            Idn = pd.NA
+            URL = pd.NA
+
+
+        # Titel
+        title = xml.xpath("marc:datafield[@tag = '245']/marc:subfield[@code='a']", namespaces=ns)
+        try:
+            title = title[0].text
+        except:
+            title = pd.NA
+
+        # Autor #100-subfield4=aut
+        aut = xml.xpath("marc:datafield[@tag = '100']/marc:subfield[@code='4']", namespaces=ns)
+        try: 
+            if aut[0].text == "aut":
+                author = xml.xpath("marc:datafield[@tag ='100']/marc:subfield[@code='a']", namespaces=ns)
+            author = author[0].text
+        except:
+            author = pd.NA
+
+        # Jahr controlfield 008
+        year = xml.xpath("marc:controlfield[@tag = '008']", namespaces=ns)
+        try:
+            year = year[0].text[7:11]  # Extract year substring from position 7 to 11 (yyyy format)]
+        except:
+            year = pd.NA
+
+
+        meta_dict = {"PPN":Idn,
+                    "Titel":title,
+                    "Autor":author,
+                    "Jahr": year,
+                    "URL": URL}
+        return meta_dict
+    return (parse_record,)
+
+
+@app.cell
 def _(etree, requests, urlencode):
     def query_sru(query, max_records=100):
         base_url = "https://sru.k10plus.de/opac-de-627"
@@ -189,14 +241,14 @@ def _(mo, nr_of_records):
     mo.stop(nr_of_records <1)
 
     all_button = mo.ui.run_button(label="Hole alle Ergebnisse")
-    hundred_button = mo.ui.run_button(label="Hole die ersten 100 Ergebnisse")
+    hundred_button = mo.ui.run_button(label="Hole die ersten max. 100 Ergebnisse")
     mo.vstack([hundred_button, all_button])
 
     # Slider to select number of records in 100-step increments, max capped at 10000 for usability
     max_limit_slider = mo.ui.slider(
-        start=100, 
+        start=0, 
         stop=min(nr_of_records, nr_of_records), 
-        value=100, 
+        value=0, 
         step=100, 
         label="Anzahl der Ergebnisse (in 100er Schritten)")
 
@@ -238,7 +290,7 @@ def _(
     Bei den geladenen Ergebnissen handelt es sich – egal, welchen Sucheinstieg Sie gewählt haben – um Titeldaten, also bibliographische Angaben, zu den Titel (Manifestationen), die Ihre Suchabfrage liefert. 
     """      
     )    
-    return (records,)
+    return records, records_loaded
 
 
 @app.cell
@@ -257,59 +309,7 @@ def _(ET, etree, records, unicodedata):
 
     # get unique exemplare
     unique_exemplare = set(all_ex)
-    return (unique_exemplare,)
-
-
-@app.cell
-def func_parse(ET, etree, pd, unicodedata):
-    def parse_record(record):
-
-        ns = {"marc":"http://www.loc.gov/MARC21/slim"}
-        record_str = ET.tostring(record, encoding='unicode')
-
-        xml = etree.fromstring(unicodedata.normalize("NFC", record_str))
-
-        #Idn
-        Idn = xml.xpath("marc:controlfield[@tag = '001']", namespaces=ns)
-        try:
-            Idn = Idn[0].text
-            URL = f"https://opac.k10plus.de/DB=2.299/PPNSET?PPN={Idn}&PRS=HOL&INDEXSET=21"
-        except:
-            Idn = pd.NA
-            URL = pd.NA
-    
-
-        # Titel
-        title = xml.xpath("marc:datafield[@tag = '245']/marc:subfield[@code='a']", namespaces=ns)
-        try:
-            title = title[0].text
-        except:
-            title = pd.NA
-
-        # Autor #100-subfield4=aut
-        aut = xml.xpath("marc:datafield[@tag = '100']/marc:subfield[@code='4']", namespaces=ns)
-        try: 
-            if aut[0].text == "aut":
-                author = xml.xpath("marc:datafield[@tag ='100']/marc:subfield[@code='a']", namespaces=ns)
-            author = author[0].text
-        except:
-            author = pd.NA
-
-        # Jahr controlfield 008
-        year = xml.xpath("marc:controlfield[@tag = '008']", namespaces=ns)
-        try:
-            year = year[0].text[7:11]  # Extract year substring from position 7 to 11 (yyyy format)]
-        except:
-            year = pd.NA
-        
-    
-        meta_dict = {"PPN":Idn,
-                    "Titel":title,
-                    "Autor":author,
-                    "Jahr": year,
-                    "URL": URL}
-        return meta_dict
-    return (parse_record,)
+    return all_ex, unique_exemplare
 
 
 @app.cell
@@ -322,22 +322,6 @@ def _(parse_record, pd, records):
 
 
 @app.cell
-def _(df_ex, mo, unique_exemplare):
-    mo.md(
-        f"""
-    Das Ergebnisset enthält **{len(df_ex)} Aussagen** zur Provenienz, die sich auf **{len(unique_exemplare)} Exemplare** beziehen.
-
-    Wenn Sie eine Titelsuche ausgeführt haben, kann es sein, dass keine Provenienzinformationen ausgegeben werden – in diesem Fall sind schlicht zu den gefundenen Titeln keine Provenienzinformationen hinterlegt. 
-
-    Es ist auch möglich, dass Sie mehr Ergebnisse zu Exemplaren erhalten als zu den Titeldaten. Dies ist dann der Fall, wenn zu einem Titel mehrere Exemplare vorliegen.
-
-    (N.B.: Es kann vorkommen, dass im Ergebnisset die Zahl der Exemplare von der Anzahl der eindeutigen Signaturen abweicht. Dies ist etwa bei Sammelbänden der Fall, die auf eine Signatur verweisen, deren Titel aber jeweils unterschiedliche Exemplarnummern haben.)
-    """
-    )
-    return
-
-
-@app.cell
 def _(ET, etree, unicodedata):
     def parse_ex(record):
 
@@ -345,7 +329,7 @@ def _(ET, etree, unicodedata):
         record_str = ET.tostring(record, encoding='unicode')
 
         xml = etree.fromstring(unicodedata.normalize("NFC", record_str))
-    
+
         # Extract the ID once per record
         controlfield_001 = xml.xpath("marc:controlfield[@tag='001']", namespaces=ns)
         record_id = controlfield_001[0].text if controlfield_001 else None
@@ -353,7 +337,7 @@ def _(ET, etree, unicodedata):
         # Extract the Title once per record
         title_field =xml.xpath("marc:datafield[@tag = '245']/marc:subfield[@code='a']", namespaces=ns)
         title = title_field[0].text if title_field else None
-    
+
         data = []
         for field361 in xml.findall("marc:datafield[@tag='361']", namespaces=ns):
             row_data = {}
@@ -366,7 +350,7 @@ def _(ET, etree, unicodedata):
                         row_data[code] = text
                     else:
                         continue
-                  
+
                 row_data[code] = text  # Use the subfield code directly as the column name
 
             data.append(row_data)
@@ -379,18 +363,49 @@ def _(ET, etree, unicodedata):
 
 
 @app.cell
-def _(parse_ex, pd, records):
+def _(all_ex, mo, unique_exemplare):
+    mo.md(
+        f"""
+    Das Ergebnisset enthält **{len(all_ex)} Aussagen** zur Provenienz, die sich auf **{len(unique_exemplare)} Exemplare** beziehen.
+
+    Wenn Sie eine Titelsuche ausgeführt haben, kann es sein, dass keine Provenienzinformationen ausgegeben werden – in diesem Fall sind schlicht zu den gefundenen Titeln keine Provenienzinformationen hinterlegt. 
+
+    Es ist auch möglich, dass Sie mehr Ergebnisse zu Exemplaren erhalten als zu den Titeldaten. Dies ist dann der Fall, wenn zu einem Titel mehrere Exemplare vorliegen.
+
+    (N.B.: Es kann vorkommen, dass im Ergebnisset die Zahl der Exemplare von der Anzahl der eindeutigen Signaturen abweicht. Dies ist etwa bei Sammelbänden der Fall, die auf eine Signatur verweisen, deren Titel aber jeweils unterschiedliche Exemplarnummern haben.)
+    """
+    )
+    return
+
+
+@app.cell
+def _(mo, records_loaded):
+    mo.stop(records_loaded<1)
+    all_ex_button = mo.ui.run_button(label="Hole Provenienzinformationen zu allen Titeln")
+    ppn_eingabe = mo.ui.text(placeholder="PPN-Liste hier eingeben", label="Nur Informationen zu Titeln aus PPN-Liste (kommasepariert)")
+    list_button = mo.ui.run_button(label="Hole Provenienzinformationen zu den Titeln in der Liste")
+    mo.vstack([all_ex_button, mo.hstack([ppn_eingabe, list_button])])
+    return all_ex_button, list_button, ppn_eingabe
+
+
+@app.cell
+def _(all_ex_button, list_button, parse_ex, pd, ppn_eingabe, records):
     output_ex = [parse_ex(record) for record in records]
-    prov_statements = [item for sublist in output_ex for item in sublist]
+
+    if all_ex_button.value:
+        prov_statements = [item for sublist in output_ex for item in sublist]
+    elif list_button.value:
+        ppn_list = [value.strip() for value in str(ppn_eingabe.value).split(",")]
+        prov_statements = [item for sublist in output_ex for item in sublist if item["PPN"] in ppn_list]
 
     # Create the DataFrame
     df_ex = pd.DataFrame(prov_statements)
-    df_ex= df_ex.rename(columns={"5":"Institution", "y": "EPN", "s": "Signatur", "o":"Typ", "a": "Name", "0":"Normdatum", "f":"Provenienzbegriff", "z": "Notiz", "u":"URI", "k":"Datum"})
+    df_ex= df_ex.rename(columns={"5":"Institution", "y": "EPN", "s": "Signatur", "o":"Typ", "a": "Name", "0":"Normdatum", "f":"Provenienzbegriff", "z": "Notiz", "u":"URI", "k":"Datum", "zu":"Test"})
 
     # add URLs for GND
-    df_ex["Normdatum"] = df_ex["Normdatum"].apply(
-        lambda x: f"https://explore.gnd.network/gnd/{x.split(")",1)[1].strip()}" if pd.notna(x) else None
-    )
+    if "Normdatum" in df_ex.columns:
+        df_ex["Normdatum"] = df_ex["Normdatum"].apply(
+        lambda x: f"https://explore.gnd.network/gnd/{x.split(")",1)[1].strip()}" if pd.notna(x) else None)
 
     # Reorder df_ex to have 'Title', 'PPN' and 'URL' as the last columns
     # Desired columns to move to the end
@@ -400,7 +415,6 @@ def _(parse_ex, pd, records):
 
     # Combine, putting desired columns at the end in order
     df_ex = df_ex[cols_start + cols_end]
-
     return (df_ex,)
 
 
@@ -441,8 +455,7 @@ def _(df_ex, etree, requests):
         if inst_id not in inst_cache and inst_id is not None:
             inst_cache[inst_id] = fetch_institution_name(inst_id)
 
-    # Map the IDs in df_ex["Institution"] to Names using cache
-    df_ex["Institution"] = df_ex["Institution"].map(inst_cache).fillna(df_ex["Institution"])
+
     return (inst_cache,)
 
 
@@ -453,7 +466,9 @@ def _(inst_cache):
 
 
 @app.cell
-def _(df_ex):
+def _(df_ex, inst_cache):
+    # Map the IDs in df_ex["Institution"] to Names using cache
+    df_ex["Institution"] = df_ex["Institution"].map(inst_cache).fillna(df_ex["Institution"])
     df_ex
     return
 
