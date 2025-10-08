@@ -115,7 +115,33 @@ def _(fig, mo):
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""## Eine Schnittstellenabfrage""")
+    return
+
+
+@app.cell
 def _():
+    import requests
+    from urllib.parse import urlencode
+
+    return requests, urlencode
+
+
+@app.cell
+def _(requests, urlencode):
+    base_url = "https://sru.k10plus.de/opac-de-627"
+    params = {
+            'recordSchema': 'marcxml',
+            'operation': 'searchRetrieve',
+            'version': '1.1',
+            'maximumRecords': '1',
+            'query': 'pica.ppn=235702242'
+        }
+    query_string = urlencode(params, safe='+')
+    response = requests.get(base_url + '?' + query_string)
+    content = response.content
+    print(content)
     return
 
 
