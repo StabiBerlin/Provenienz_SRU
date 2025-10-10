@@ -50,11 +50,6 @@ def _(mo):
 
 @app.cell
 def _():
-    return
-
-
-@app.cell
-def _():
     import pandas as pd
     return (pd,)
 
@@ -95,11 +90,26 @@ def _(df):
 
 
 @app.cell
-def _(df):
+def _(df, mo):
+    editor = mo.ui.data_editor(df)
+
+    editor
+    return (editor,)
+
+
+@app.cell
+def _(editor, pd):
+    df_new = pd.DataFrame(editor.value)
+    df_new
+    return (df_new,)
+
+
+@app.cell
+def _(df_new):
     import plotly.express as px
 
     # Create a bar chart
-    fig = px.bar(df, x='Monat', y='Besucherzahlen', title='Besucherzahlen pro Monat',
+    fig = px.bar(df_new, x='Monat', y='Besucherzahlen', title='Besucherzahlen pro Monat',
                  labels={'Monat':'Monat', 'Besucherzahlen':'Besucherzahlen'},
                  color='Monat', color_discrete_sequence=px.colors.qualitative.Plotly)
 
@@ -124,7 +134,6 @@ def _(mo):
 def _():
     import requests
     from urllib.parse import urlencode
-
     return requests, urlencode
 
 
@@ -142,6 +151,17 @@ def _(requests, urlencode):
     response = requests.get(base_url + '?' + query_string)
     content = response.content
     print(content)
+    return (content,)
+
+
+@app.cell
+def _(content, mo):
+    mo.md(
+        f"""
+    ## Response
+    {mo.as_html(content)}
+    """
+    )
     return
 
 
