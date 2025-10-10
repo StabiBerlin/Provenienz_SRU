@@ -474,15 +474,29 @@ def _(df_ex, inst_cache):
 
 @app.cell
 def _(df_ex, mo):
+    mo.stop(len(df_ex)<1)
     mo.md("""## Möglichkeit nach Institutionen und Provenienzbegriffen zu filtern""")
+    return
+
+
+@app.cell
+def _(df_ex, mo):
+
 
     institutions = sorted(df_ex["Institution"].dropna().unique())
     prov_terms = sorted(df_ex["Provenienzbegriff"].dropna().unique())
+    types = sorted(df_ex["Typ"].dropna().unique())
 
     inst_filter = mo.ui.dropdown(
         options=["Alle"] + institutions,
         value="Alle",
         label="Institution"
+    )
+
+    typ_filter = mo.ui.dropdown(
+        options=["Alle"] + types,
+        value="Alle",
+        label="Typ"
     )
 
     prov_filter = mo.ui.dropdown(
@@ -493,23 +507,52 @@ def _(df_ex, mo):
 
 
 
-    controls = mo.hstack([inst_filter, prov_filter])
+    controls = mo.hstack([inst_filter, typ_filter, prov_filter])
     controls
-    return inst_filter, prov_filter
+    return inst_filter, prov_filter, typ_filter
 
 
 @app.cell
-def _(df_ex, inst_filter, mo, prov_filter):
+def _(df_ex, inst_filter, mo, prov_filter, typ_filter):
     filtered = df_ex.copy()
 
     if inst_filter.value != "Alle":
         filtered = filtered[filtered["Institution"] == inst_filter.value]
+
+    if typ_filter.value != "Alle":
+        filtered = filtered[filtered["Typ"] == typ_filter.value]
 
     if prov_filter.value != "Alle":
         filtered = filtered[filtered["Provenienzbegriff"] == prov_filter.value]
 
     filtered_df_ex = mo.ui.dataframe(filtered)
     mo.vstack([mo.md("### Gefilterte Exemplare"), filtered_df_ex])
+    return
+
+
+@app.cell
+def _(df_ex, mo):
+    mo.stop(len(df_ex)<1)
+
+    mo.md("""## Möglichkeit, Listen zu generieren
+    Hier eine Liste aller Vorbesitzer (Name, wenn Typ = "Vorbesitz")""")
+    return
+
+
+@app.cell
+def _(df_ex, mo, pd):
+    mo.stop(len(df_ex)<1)
+
+    mo.md("Liste")
+
+    # Get unique names where Typ == "Vorbesitz"
+    unique_names_vorbesitz = df_ex.loc[df_ex["Typ"] == "Vorbesitz", "Name"].dropna().unique()
+
+    # Convert to a DataFrame for display convenience
+    unique_names_df = pd.DataFrame({"Name": unique_names_vorbesitz})
+
+    # Display as a reactive interactive table in Marimo UI
+    unique_names_df
     return
 
 
