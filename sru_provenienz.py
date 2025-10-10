@@ -600,18 +600,5 @@ def _(df_ex):
     return (df_ex_next,)
 
 
-@app.cell
-def _(df_ex, mo):
-    # Use mo.ui.data_explorer to provide an interactive way to explore the provenance exemplar data
-
-
-    explorer = mo.ui.data_explorer(df_ex)
-
-    title = mo.md("### Data explorer")
-    combined = mo.vstack([title, explorer])
-    combined
-    return
-
-
 if __name__ == "__main__":
     app.run()
