@@ -455,7 +455,6 @@ def _(df_ex, etree, requests):
         if inst_id not in inst_cache and inst_id is not None:
             inst_cache[inst_id] = fetch_institution_name(inst_id)
 
-
     return (inst_cache,)
 
 
@@ -470,6 +469,47 @@ def _(df_ex, inst_cache):
     # Map the IDs in df_ex["Institution"] to Names using cache
     df_ex["Institution"] = df_ex["Institution"].map(inst_cache).fillna(df_ex["Institution"])
     df_ex
+    return
+
+
+@app.cell
+def _(df_ex, mo):
+    mo.md("""## Möglichkeit nach Institutionen und Provenienzbegriffen zu filtern""")
+
+    institutions = sorted(df_ex["Institution"].dropna().unique())
+    prov_terms = sorted(df_ex["Provenienzbegriff"].dropna().unique())
+
+    inst_filter = mo.ui.dropdown(
+        options=["Alle"] + institutions,
+        value="Alle",
+        label="Institution"
+    )
+
+    prov_filter = mo.ui.dropdown(
+        options=["Alle"] + prov_terms,
+        value="Alle",
+        label="Provenienzbegriff"
+    )
+
+
+
+    controls = mo.hstack([inst_filter, prov_filter])
+    controls
+    return inst_filter, prov_filter
+
+
+@app.cell
+def _(df_ex, inst_filter, mo, prov_filter):
+    filtered = df_ex.copy()
+
+    if inst_filter.value != "Alle":
+        filtered = filtered[filtered["Institution"] == inst_filter.value]
+
+    if prov_filter.value != "Alle":
+        filtered = filtered[filtered["Provenienzbegriff"] == prov_filter.value]
+
+    filtered_df_ex = mo.ui.dataframe(filtered)
+    mo.vstack([mo.md("### Gefilterte Exemplare"), filtered_df_ex])
     return
 
 
