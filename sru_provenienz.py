@@ -84,19 +84,6 @@ def _(einstieg, mo, querytext, text):
 
 
 @app.cell
-def _(einstieg, querytext, text):
-    if einstieg.value == "Provenienz-Schlagwort":
-        query = "pica.prk="+querytext.value
-
-    elif einstieg.value == "Titel-Schlagwort":
-       query = "pica.tit="+querytext.value
-
-    elif text.value != "":
-        query = text.value
-    return (query,)
-
-
-@app.cell
 def _(etree, requests, urlencode):
     def get_nr_of_records(query):
         base_url = "https://sru.k10plus.de/opac-de-627"
@@ -121,6 +108,65 @@ def _(etree, requests, urlencode):
 
         return number_of_records    
     return (get_nr_of_records,)
+
+
+@app.cell
+def _(einstieg, querytext, text):
+    if einstieg.value == "Provenienz-Schlagwort":
+        query = "pica.prk="+querytext.value
+
+    elif einstieg.value == "Titel-Schlagwort":
+       query = "pica.tit="+querytext.value
+
+    elif text.value != "":
+        query = text.value
+    return (query,)
+
+
+@app.cell
+def _(etree, requests, urlencode):
+    def query_sru(query, max_records=100):
+        base_url = "https://sru.k10plus.de/opac-de-627"
+        params = {
+            'recordSchema': 'marcxml',
+            'operation': 'searchRetrieve',
+            'version': '1.1',
+            'maximumRecords': '100',   # maximum allowed per request
+            'startRecord': 1,
+            'query': query
+        }
+
+        all_records = []
+        records_to_fetch = max_records
+
+        while records_to_fetch > 0:
+            batch_size = min(records_to_fetch, 100)  # fetch up to 100 each time
+            params['maximumRecords'] = str(batch_size)
+            params['startRecord'] = str(len(all_records) + 1)
+
+            query_string = urlencode(params, safe='+')
+            response = requests.get(base_url + '?' + query_string)
+
+            print(response.url)  # for debugging
+
+            content = response.content
+
+            parser = etree.XMLParser(recover=True)
+            root = etree.fromstring(content, parser)
+
+            # Find records in this batch
+            batch_records = root.findall('.//{http://www.loc.gov/MARC21/slim}record')
+
+            all_records.extend(batch_records)
+
+            records_to_fetch -= batch_size
+
+            # Stop if no more records returned (end of data)
+            if not batch_records:
+                break
+
+        return all_records
+    return (query_sru,)
 
 
 @app.cell
@@ -188,52 +234,6 @@ def func_parse(ET, etree, pd, unicodedata):
                     "URL": URL}
         return meta_dict
     return (parse_record,)
-
-
-@app.cell
-def _(etree, requests, urlencode):
-    def query_sru(query, max_records=100):
-        base_url = "https://sru.k10plus.de/opac-de-627"
-        params = {
-            'recordSchema': 'marcxml',
-            'operation': 'searchRetrieve',
-            'version': '1.1',
-            'maximumRecords': '100',   # maximum allowed per request
-            'startRecord': 1,
-            'query': query
-        }
-
-        all_records = []
-        records_to_fetch = max_records
-
-        while records_to_fetch > 0:
-            batch_size = min(records_to_fetch, 100)  # fetch up to 100 each time
-            params['maximumRecords'] = str(batch_size)
-            params['startRecord'] = str(len(all_records) + 1)
-
-            query_string = urlencode(params, safe='+')
-            response = requests.get(base_url + '?' + query_string)
-
-            print(response.url)  # for debugging
-
-            content = response.content
-
-            parser = etree.XMLParser(recover=True)
-            root = etree.fromstring(content, parser)
-
-            # Find records in this batch
-            batch_records = root.findall('.//{http://www.loc.gov/MARC21/slim}record')
-
-            all_records.extend(batch_records)
-
-            records_to_fetch -= batch_size
-
-            # Stop if no more records returned (end of data)
-            if not batch_records:
-                break
-
-        return all_records
-    return (query_sru,)
 
 
 @app.cell
@@ -454,7 +454,6 @@ def _(df_ex, etree, requests):
     for inst_id in unique_ids:
         if inst_id not in inst_cache and inst_id is not None:
             inst_cache[inst_id] = fetch_institution_name(inst_id)
-
     return (inst_cache,)
 
 
@@ -525,8 +524,8 @@ def _(df_ex, inst_filter, mo, prov_filter, typ_filter):
     if prov_filter.value != "Alle":
         filtered = filtered[filtered["Provenienzbegriff"] == prov_filter.value]
 
-    filtered_df_ex = mo.ui.dataframe(filtered)
-    mo.vstack([mo.md("### Gefilterte Exemplare"), filtered_df_ex])
+    #filtered_df_ex = mo.ui.dataframe(filtered)
+    mo.vstack([mo.md("### Gefilterte Exemplare"), filtered])
     return
 
 
