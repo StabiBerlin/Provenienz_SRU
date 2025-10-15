@@ -37,7 +37,20 @@ def _():
     from urllib.parse import urlencode
     import pandas as pd
     import altair as alt
-    return ET, alt, etree, mo, pd, requests, unicodedata, urlencode
+    from collections import Counter, defaultdict
+    import plotly.graph_objects as go
+    return (
+        Counter,
+        ET,
+        alt,
+        etree,
+        go,
+        mo,
+        pd,
+        requests,
+        unicodedata,
+        urlencode,
+    )
 
 
 @app.cell
@@ -640,6 +653,195 @@ def _(df_ex):
     df_ex_next = df_ex_next[(df_ex_next["Institution"].eq("Staatsbibliothek zu Berlin - Preußischer Kulturbesitz, Haus Unter den Linden")) & (df_ex_next["Provenienzbegriff"].eq("Stempel")) & (df_ex_next["Notiz"].notna())]
     df_ex_next
     return (df_ex_next,)
+
+
+@app.cell
+def _():
+    '''
+    # --- Sample provenance (same as above) ---
+    sample_data = {
+        "Book A": ["John Smith", "Mary Wilson", "University Library"],
+        "Book B": ["Henry Lewis", "John Smith"],
+        "Book C": ["Alice Thompson", "George Clark", "John Smith"],
+        "Book D": ["George Clark"],
+        "Book E": ["Mary Wilson", "Alice Thompson"],
+        "Book F": ["John Smith", "Mary Wilson", "George Clark", "University Library"]
+    }
+
+    # Build list of all owners (unique)
+    all_owners = list({o for owners in sample_data.values() for o in owners})
+    owner_to_idx = {owner: i for i, owner in enumerate(all_owners)}
+
+    # Build aggregated transfers: for each item, for each adjacent owner pair, increment counter
+    transfers = Counter()
+    for owners in sample_data.values():
+
+        for a, b in zip(owners, owners[1:]):
+            transfers[(a, b)] += 1
+
+
+        all_nodes = all_owners
+        src, tgt, val = [], [], []
+        for (a, b), cnt in transfers.items():
+            src.append(owner_to_idx[a])
+            tgt.append(owner_to_idx[b])
+            val.append(cnt)
+
+    # Build sankey
+    fig = go.Figure(data=[go.Sankey(
+        node=dict(label=all_nodes, pad=15, thickness=18),
+        link=dict(source=src, target=tgt, value=val),
+        arrangement='snap'  # or 'perpendicular'
+    )])
+    fig.update_layout(height=800)  # default is ~450
+
+    fig.update_layout(title_text="Aggregated provenance Sankey (flows = # items)", font_size=12)
+    fig.show()'''
+    return
+
+
+@app.cell
+def _(Counter):
+    def build_provenance_graph_from_df(df,
+                                       item_col='EPN',
+                                       type_col='Typ',
+                                       owner_col='Name',
+                                       vorbesitz_value='Vorbesitz'):
+        """
+        Input:
+          df: pandas.DataFrame containing at least columns item_col, type_col, owner_col
+          item_col: column name which holds item identifier (e.g. 'EPN')
+          type_col: column holding the type (we filter rows equal to vorbesitz_value)
+          owner_col: column with owner names
+          vorbesitz_value: value to match in type_col to select provenance rows
+        Returns:
+          owners_per_item: dict {item: [owner1, owner2, ...]} (unique per item, preserving order)
+          per_item_edges: list of tuples (item, source_owner, target_owner)
+          aggregated_edges: dict {(source, target): count}
+          nodes: dict {owner: frequency_count}
+        """
+
+        owners_per_item = {}
+        per_item_edges = []
+        aggregated_edges = Counter()
+        node_counts = Counter()
+
+        # ensure original df order is preserved — if ordering by date is desired, sort beforehand
+        # df = df.sort_values(by='DateColumn')  # optional if you have a date/seq column
+
+        for item, sub in df.groupby(item_col, sort=False):
+            # select rows where Typ == 'Vorbesitz' for that item, preserve original row order
+            sub_v = sub[sub[type_col] == vorbesitz_value]
+
+            # keep unique names for the item preserving first occurrence
+            seen = set()
+            owners = []
+            for name in sub_v[owner_col].astype(str).tolist():
+                if name not in seen:
+                    seen.add(name)
+                    owners.append(name)
+
+            if owners:
+                owners_per_item[item] = owners
+                # increment node counts (count occurrences across items)
+                for o in owners:
+                    node_counts[o] += 1
+                # build adjacency edges for this item
+                for a, b in zip(owners, owners[1:]):
+                    per_item_edges.append((item, a, b))
+                    aggregated_edges[(a, b)] += 1
+            else:
+                # items with no Vorbesitz rows: you may still want to record an empty list
+                owners_per_item[item] = []
+
+        return owners_per_item, per_item_edges, dict(aggregated_edges), dict(node_counts)
+    return (build_provenance_graph_from_df,)
+
+
+@app.cell
+def _(build_provenance_graph_from_df, df_ex):
+    owners_per_item, per_item_edges, aggregated_edges, nodes = build_provenance_graph_from_df(df_ex)
+    return (owners_per_item,)
+
+
+@app.cell
+def _(owners_per_item):
+    print(owners_per_item)
+    return
+
+
+@app.cell
+def _(Counter, go, owners_per_item):
+    def aggregated_edges_to_sankey_arrays(aggregated_edges,
+                                          node_order=None,
+                                          sort_by_frequency=False):
+        """
+        Convert aggregated_edges dict -> Plotly Sankey arrays.
+        Params:
+          aggregated_edges: dict {(src_name, tgt_name): value}
+          node_order: optional list of node labels to force ordering (others appended)
+          sort_by_frequency: if True, order nodes by descending occurrence frequency
+        Returns:
+          labels: list[str]        # node labels in index order
+          src:   list[int]        # source indices
+          tgt:   list[int]        # target indices
+          val:   list[int]        # values (counts)
+        """
+
+        # collect node set
+        nodes = set()
+        for (a, b) in aggregated_edges.keys():
+            nodes.add(a)
+            nodes.add(b)
+
+        # if user provides an explicit node_order, start from that (and append remaining)
+        if node_order:
+            labels = list(node_order) + [n for n in sorted(nodes) if n not in set(node_order)]
+        else:
+            labels = sorted(nodes)  # deterministic default
+
+        # If user wants sort by frequency (appearances as source or target), compute frequency
+        if sort_by_frequency:
+            freq = Counter()
+            for (a, b), cnt in aggregated_edges.items():
+                freq[a] += cnt
+                freq[b] += cnt
+            # sort labels by descending freq, tie-breaker alphabetical
+            labels = sorted(labels, key=lambda l: (-freq.get(l, 0), l))
+
+        # map to indices
+        label_to_idx = {label: i for i, label in enumerate(labels)}
+
+        # build arrays
+        src, tgt, val = [], [], []
+        for (a, b), cnt in aggregated_edges.items():
+            # defensive: skip edges where a or b not in label_to_idx (shouldn't happen)
+            if a not in label_to_idx or b not in label_to_idx:
+                continue
+            src.append(label_to_idx[a])
+            tgt.append(label_to_idx[b])
+            val.append(cnt)
+
+        return labels, src, tgt, val
+
+
+    # -----------------------
+
+    aggregated_edges = owners_per_item
+
+    labels, src, tgt, val = aggregated_edges_to_sankey_arrays(aggregated_edges,
+                                                              node_order=None,
+                                                              sort_by_frequency=True)
+
+    # Now you can plug straight into Plotly:
+
+    fig = go.Figure(data=[go.Sankey(
+        node=dict(label=labels, pad=15, thickness=18),
+        link=dict(source=src, target=tgt, value=val)
+    )])
+    fig.update_layout(title_text="Aggregated provenance Sankey", font_size=12, height=600)
+    fig.show()
+    return
 
 
 if __name__ == "__main__":
