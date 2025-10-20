@@ -656,13 +656,15 @@ def _(df_ex):
 
 
 @app.cell
-def _(mo):
+def _(df_ex, mo):
+    mo.stop(len(df_ex)<1)
     mo.md("""## Versuch einer Netzwerkvisualisierung (experimentell)""")
     return
 
 
 @app.cell
-def _(mo):
+def _(df_ex, mo):
+    mo.stop(len(df_ex)<1)
     mo.md(
         """
     #### Aufbereitung der Daten
@@ -683,15 +685,7 @@ def _(Counter):
                                     type_col='Typ',
                                     owner_col='Name',
                                     provenance_types=('Vorbesitz', 'Zugang')):
-        """
-        Convert dataframe provenance rows -> Plotly Sankey arrays.
 
-        Returns:
-          labels: list[str]
-          src: list[int]
-          tgt: list[int]
-          val: list[int]
-        """
         # 1) Filter relevant rows (preserve df order)
         df_f = df[df[type_col].isin(provenance_types)]
 
@@ -738,6 +732,7 @@ def _(Counter):
 
 @app.cell
 def _(df_ex, go, provenance_to_sankey_arrays):
+
     labels, src, tgt, val = provenance_to_sankey_arrays(df_ex)
 
     fig = go.Figure(data=[go.Sankey(node=dict(label=labels), link=dict(source=src, target=tgt, value=val))])
