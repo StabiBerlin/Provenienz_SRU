@@ -37,7 +37,20 @@ def _():
     from urllib.parse import urlencode
     import pandas as pd
     import altair as alt
-    return ET, alt, etree, mo, pd, requests, unicodedata, urlencode
+    from collections import Counter, defaultdict
+    import plotly.graph_objects as go
+    return (
+        Counter,
+        ET,
+        alt,
+        etree,
+        go,
+        mo,
+        pd,
+        requests,
+        unicodedata,
+        urlencode,
+    )
 
 
 @app.cell
@@ -640,6 +653,95 @@ def _(df_ex):
     df_ex_next = df_ex_next[(df_ex_next["Institution"].eq("Staatsbibliothek zu Berlin - Preußischer Kulturbesitz, Haus Unter den Linden")) & (df_ex_next["Provenienzbegriff"].eq("Stempel")) & (df_ex_next["Notiz"].notna())]
     df_ex_next
     return (df_ex_next,)
+
+
+@app.cell
+def _(df_ex, mo):
+    mo.stop(len(df_ex)<1)
+    mo.md("""## Versuch einer Netzwerkvisualisierung (experimentell)""")
+    return
+
+
+@app.cell
+def _(df_ex, mo):
+    mo.stop(len(df_ex)<1)
+    mo.md(
+        """
+    #### Aufbereitung der Daten
+    - aus den Provenienzdaten werden diejenigen gefilter, die mindestens zwei Provenienzstatements besitzen von den Typen 'Vorbesitz' oder 'Zugang'
+    - bei diesen werden die angegebenen Namen extrahiert (nur unique values)
+    - diese werden als Knoten in einem Netzwerk betrachtet, Abfolgen zwischen den Knoten als Kanten
+
+    **Caveats**: Die Provenienzdaten sind häufig nicht vollständig genug, um
+    """
+    )
+    return
+
+
+@app.cell
+def _(Counter):
+    def provenance_to_sankey_arrays(df,
+                                    item_col='EPN',
+                                    type_col='Typ',
+                                    owner_col='Name',
+                                    provenance_types=('Vorbesitz', 'Zugang')):
+
+        # 1) Filter relevant rows (preserve df order)
+        df_f = df[df[type_col].isin(provenance_types)]
+
+        # 2) Build owners per item (unique per item, preserve appearance order)
+        owners_per_item = {}
+        for item, sub in df_f.groupby(item_col, sort=False):
+            seen = set()
+            owners = []
+            for name in sub[owner_col].astype(str).tolist():
+                if name not in seen:
+                    seen.add(name)
+                    owners.append(name)
+            if len(owners) >= 2:
+                owners_per_item[item] = owners
+
+        # 3) Aggregate transfers across items
+        transfers = Counter()
+        node_freq = Counter()
+        for owners in owners_per_item.values():
+            for a, b in zip(owners, owners[1:]):
+                transfers[(a, b)] += 1
+            for o in set(owners):  # count unique appearance per item
+                node_freq[o] += 1
+
+        # 4) Build labels ordered by descending frequency (most frequent first)
+        labels = [n for n, _ in node_freq.most_common()]
+
+        # 5) Map labels -> indices and build src/tgt/val arrays
+        label_to_idx = {label: i for i, label in enumerate(labels)}
+        src, tgt, val = [], [], []
+        for (a, b), cnt in transfers.items():
+            # If an owner appears in transfers but not in node_freq (edge case), add them
+            if a not in label_to_idx:
+                label_to_idx[a] = len(labels); labels.append(a)
+            if b not in label_to_idx:
+                label_to_idx[b] = len(labels); labels.append(b)
+            src.append(label_to_idx[a])
+            tgt.append(label_to_idx[b])
+            val.append(cnt)
+
+        return labels, src, tgt, val
+    return (provenance_to_sankey_arrays,)
+
+
+@app.cell
+def _(df_ex, go, provenance_to_sankey_arrays):
+
+    labels, src, tgt, val = provenance_to_sankey_arrays(df_ex)
+
+    fig = go.Figure(data=[go.Sankey(node=dict(label=labels), link=dict(source=src, target=tgt, value=val))])
+    fig.update_layout(
+        font_size=12,
+        height=1500,
+        width = 1150# gives more room, reduces overlaps
+    )
+    return
 
 
 if __name__ == "__main__":
