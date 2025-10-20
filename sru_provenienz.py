@@ -37,7 +37,20 @@ def _():
     from urllib.parse import urlencode
     import pandas as pd
     import altair as alt
-    return ET, alt, etree, mo, pd, requests, unicodedata, urlencode
+    from collections import Counter, defaultdict
+    import plotly.graph_objects as go
+    return (
+        Counter,
+        ET,
+        alt,
+        etree,
+        go,
+        mo,
+        pd,
+        requests,
+        unicodedata,
+        urlencode,
+    )
 
 
 @app.cell
@@ -642,8 +655,6 @@ def _(df_ex):
     return (df_ex_next,)
 
 
-<<<<<<< Updated upstream
-=======
 @app.cell
 def _(df_ex, mo):
     mo.stop(len(df_ex)<1)
@@ -735,6 +746,5 @@ def _(df_ex, go, provenance_to_sankey_arrays):
     return
 
 
->>>>>>> Stashed changes
 if __name__ == "__main__":
     app.run()
