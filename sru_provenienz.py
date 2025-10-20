@@ -743,7 +743,8 @@ def _(df_ex, go, provenance_to_sankey_arrays):
     fig = go.Figure(data=[go.Sankey(node=dict(label=labels), link=dict(source=src, target=tgt, value=val))])
     fig.update_layout(
         font_size=12,
-        height=1500,  # gives more room, reduces overlaps
+        height=1500,
+        width = 1150# gives more room, reduces overlaps
     )
     return
 
