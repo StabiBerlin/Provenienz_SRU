@@ -39,10 +39,12 @@ def _():
     import altair as alt
     from collections import Counter, defaultdict
     import plotly.graph_objects as go
+    from functools import cache
     return (
         Counter,
         ET,
         alt,
+        cache,
         etree,
         go,
         mo,
@@ -97,7 +99,8 @@ def _(einstieg, mo, querytext, text):
 
 
 @app.cell
-def _(etree, requests, urlencode):
+def _(cache, etree, requests, urlencode):
+    @cache
     def get_nr_of_records(query):
         base_url = "https://sru.k10plus.de/opac-de-627"
         params = {
@@ -358,6 +361,7 @@ def _(ET, etree, unicodedata):
                 code = subfield.get("code")
                 text = subfield.text
 
+                # only keep authority file fields for GND (DE-588)
                 if code == "0":
                     if text is not None and text.startswith("(DE-588"):
                         row_data[code] = text
@@ -432,9 +436,10 @@ def _(all_ex_button, list_button, parse_ex, pd, ppn_eingabe, records):
 
 
 @app.cell
-def _(df_ex, etree, requests):
+def _(ISIL_SRU_BASE, NS, cache, df_ex, etree, requests):
+    @cache
     def fetch_institution_name(inst_id):
-        base_url = "https://services.dnb.de/sru/bib"
+        base_url = ISIL_SRU_BASE
         params = {
             "version": "1.1",
             "operation": "searchRetrieve",
@@ -448,38 +453,26 @@ def _(df_ex, etree, requests):
         parser = etree.XMLParser(recover=True)
         xml = etree.fromstring(response.content, parser=parser)
 
-        # Define namespace for ppxml elements if any; here assuming default (adjust if needed)
-        ns = {"ppxml": "http://www.oclcpica.org/xmlns/ppxml-1.0"}    
-        name_field = xml.xpath('.//ppxml:tag[@id="029A"]/ppxml:subf[@id="a"]', namespaces=ns)
+     
+        name_field = xml.xpath('.//ppxml:tag[@id="029A"]/ppxml:subf[@id="a"]', namespaces=NS)
         name = name_field[0].text
         if name_field:
             return name
         else:
             return inst_id
 
-    # Cache dictionary for institution IDs to names
-    inst_cache = {}
-
-    # Get unique Institution IDs from df_ex
+    inst_name = {}
     unique_ids = df_ex["Institution"].unique()
 
-    # Fetch names for all unique IDs not in cache yet
     for inst_id in unique_ids:
-        if inst_id not in inst_cache and inst_id is not None:
-            inst_cache[inst_id] = fetch_institution_name(inst_id)
-    return (inst_cache,)
+        inst_name[inst_id] = fetch_institution_name(inst_id)
+    return (inst_name,)
 
 
 @app.cell
-def _(inst_cache):
-    print(inst_cache)
-    return
-
-
-@app.cell
-def _(df_ex, inst_cache):
+def _(df_ex, inst_name):
     # Map the IDs in df_ex["Institution"] to Names using cache
-    df_ex["Institution"] = df_ex["Institution"].map(inst_cache).fillna(df_ex["Institution"])
+    df_ex["Institution"] = df_ex["Institution"].map(inst_name).fillna(df_ex["Institution"])
     df_ex
     return
 
