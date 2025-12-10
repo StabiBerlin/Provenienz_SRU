@@ -56,6 +56,26 @@ def _():
 
 
 @app.cell
+def _():
+    # Constants
+    # SRU base URLs
+    K10PLUS_SRU_BASE = "https://sru.k10plus.de/opac-de-627"
+    ISIL_SRU_BASE = "https://services.dnb.de/sru/bib"
+
+
+    # Default SRU parameters
+    DEFAULT_RECORD_SCHEMA = "marcxml"
+
+    # XML Namespaces
+    NS = {
+    "marc": "http://www.loc.gov/MARC21/slim",
+    "zs": "http://www.loc.gov/zing/srw/",
+    "ppxml": "http://www.oclcpica.org/xmlns/ppxml-1.0"
+    }
+    return DEFAULT_RECORD_SCHEMA, ISIL_SRU_BASE, K10PLUS_SRU_BASE, NS
+
+
+@app.cell
 def _(mo):
     # define variable and ui-element for query text
     querytext = mo.ui.text(placeholder="Suchbegriff...", label="Suchbegriff")
@@ -99,12 +119,20 @@ def _(einstieg, mo, querytext, text):
 
 
 @app.cell
-def _(cache, etree, requests, urlencode):
+def _(
+    DEFAULT_RECORD_SCHEMA,
+    K10PLUS_SRU_BASE,
+    NS,
+    cache,
+    etree,
+    requests,
+    urlencode,
+):
     @cache
     def get_nr_of_records(query):
-        base_url = "https://sru.k10plus.de/opac-de-627"
+        base_url = K10PLUS_SRU_BASE
         params = {
-            'recordSchema': 'marcxml',
+            'recordSchema': DEFAULT_RECORD_SCHEMA,
             'operation': 'searchRetrieve',
             'version': '1.1',
             'maximumRecords': '1',
@@ -117,12 +145,12 @@ def _(cache, etree, requests, urlencode):
         parser = etree.XMLParser(recover=True)
         root = etree.fromstring(content, parser)
         try:
-            number_of_records = int(root.find('.//{http://www.loc.gov/zing/srw/}numberOfRecords').text)
+            number_of_records = int(root.find('.//zs:numberOfRecords', namespaces=NS).text)
         except (AttributeError):
             print(response.request.url)
             raise ValueError("Kein numberOfRecords-Element in der Antwort -- Fehler in der Anfrage?")
 
-        return number_of_records    
+        return number_of_records     
     return (get_nr_of_records,)
 
 
@@ -140,11 +168,11 @@ def _(einstieg, querytext, text):
 
 
 @app.cell
-def _(etree, requests, urlencode):
+def _(DEFAULT_RECORD_SCHEMA, K10PLUS_SRU_BASE, NS, etree, requests, urlencode):
     def query_sru(query, max_records=100):
-        base_url = "https://sru.k10plus.de/opac-de-627"
+        base_url = K10PLUS_SRU_BASE
         params = {
-            'recordSchema': 'marcxml',
+            'recordSchema': DEFAULT_RECORD_SCHEMA,
             'operation': 'searchRetrieve',
             'version': '1.1',
             'maximumRecords': '100',   # maximum allowed per request
@@ -171,7 +199,7 @@ def _(etree, requests, urlencode):
             root = etree.fromstring(content, parser)
 
             # Find records in this batch
-            batch_records = root.findall('.//{http://www.loc.gov/MARC21/slim}record')
+            batch_records = root.findall('.//marc:record', namespaces=NS)
 
             all_records.extend(batch_records)
 
@@ -201,16 +229,16 @@ def _(get_nr_of_records, mo, query):
 
 
 @app.cell
-def func_parse(ET, etree, pd, unicodedata):
+def func_parse(ET, NS, etree, pd, unicodedata):
     def parse_record(record):
 
-        ns = {"marc":"http://www.loc.gov/MARC21/slim"}
+    
         record_str = ET.tostring(record, encoding='unicode')
 
         xml = etree.fromstring(unicodedata.normalize("NFC", record_str))
 
         #Idn
-        Idn = xml.xpath("marc:controlfield[@tag = '001']", namespaces=ns)
+        Idn = xml.xpath("marc:controlfield[@tag = '001']", namespaces=NS)
         try:
             Idn = Idn[0].text
             URL = f"https://opac.k10plus.de/DB=2.299/PPNSET?PPN={Idn}&PRS=HOL&INDEXSET=21"
@@ -220,23 +248,23 @@ def func_parse(ET, etree, pd, unicodedata):
 
 
         # Titel
-        title = xml.xpath("marc:datafield[@tag = '245']/marc:subfield[@code='a']", namespaces=ns)
+        title = xml.xpath("marc:datafield[@tag = '245']/marc:subfield[@code='a']", namespaces=NS)
         try:
             title = title[0].text
         except:
             title = pd.NA
 
         # Autor #100-subfield4=aut
-        aut = xml.xpath("marc:datafield[@tag = '100']/marc:subfield[@code='4']", namespaces=ns)
+        aut = xml.xpath("marc:datafield[@tag = '100']/marc:subfield[@code='4']", namespaces=NS)
         try: 
             if aut[0].text == "aut":
-                author = xml.xpath("marc:datafield[@tag ='100']/marc:subfield[@code='a']", namespaces=ns)
+                author = xml.xpath("marc:datafield[@tag ='100']/marc:subfield[@code='a']", namespaces=NS)
             author = author[0].text
         except:
             author = pd.NA
 
         # Jahr controlfield 008
-        year = xml.xpath("marc:controlfield[@tag = '008']", namespaces=ns)
+        year = xml.xpath("marc:controlfield[@tag = '008']", namespaces=NS)
         try:
             year = year[0].text[7:11]  # Extract year substring from position 7 to 11 (yyyy format)]
         except:
@@ -338,26 +366,25 @@ def _(parse_record, pd, records):
 
 
 @app.cell
-def _(ET, etree, unicodedata):
+def _(ET, NS, etree, unicodedata):
     def parse_ex(record):
 
-        ns = {"marc":"http://www.loc.gov/MARC21/slim"}
         record_str = ET.tostring(record, encoding='unicode')
 
         xml = etree.fromstring(unicodedata.normalize("NFC", record_str))
 
         # Extract the ID once per record
-        controlfield_001 = xml.xpath("marc:controlfield[@tag='001']", namespaces=ns)
+        controlfield_001 = xml.xpath("marc:controlfield[@tag='001']", namespaces=NS)
         record_id = controlfield_001[0].text if controlfield_001 else None
 
         # Extract the Title once per record
-        title_field =xml.xpath("marc:datafield[@tag = '245']/marc:subfield[@code='a']", namespaces=ns)
+        title_field =xml.xpath("marc:datafield[@tag = '245']/marc:subfield[@code='a']", namespaces=NS)
         title = title_field[0].text if title_field else None
 
         data = []
-        for field361 in xml.findall("marc:datafield[@tag='361']", namespaces=ns):
+        for field361 in xml.findall("marc:datafield[@tag='361']", namespaces=NS):
             row_data = {}
-            for subfield in field361.findall("marc:subfield", namespaces=ns):
+            for subfield in field361.findall("marc:subfield", namespaces=NS):
                 code = subfield.get("code")
                 text = subfield.text
 
