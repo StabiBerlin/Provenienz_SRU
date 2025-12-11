@@ -447,7 +447,7 @@ def _(all_ex_button, list_button, parse_ex, pd, ppn_eingabe, records):
 
     # Create the DataFrame
     df_ex = pd.DataFrame(prov_statements)
-    df_ex= df_ex.rename(columns={"5":"Institution", "y": "EPN", "s": "Signatur", "o":"Typ", "a": "Name", "0":"Normdatum", "f":"Provenienzbegriff", "z": "Notiz", "u":"URI", "k":"Datum", "zu":"Test"})
+    df_ex= df_ex.rename(columns={"5":"Institution", "y": "EPN", "s": "Signatur", "o":"Typ", "a": "Name", "0":"Normdatum", "f":"Provenienzbegriff", "z": "Notiz", "u":"URL (Schlüsselseite)", "k":"Datum (strukturiert)", "l":"Datum (unstrukturiert)"})
 
     # add URLs for GND
     if "Normdatum" in df_ex.columns:
