@@ -428,9 +428,9 @@ def _(all_ex, mo, unique_exemplare):
 @app.cell
 def _(mo, records_loaded):
     mo.stop(records_loaded<1)
-    all_ex_button = mo.ui.run_button(label="Hole Provenienzinformationen zu allen Titeln")
+    all_ex_button = mo.ui.run_button(label="Zeige Provenienzinformationen zu allen Titeln")
     ppn_eingabe = mo.ui.text(placeholder="PPN-Liste hier eingeben", label="Nur Informationen zu Titeln aus PPN-Liste (kommasepariert)")
-    list_button = mo.ui.run_button(label="Hole Provenienzinformationen zu den Titeln in der Liste")
+    list_button = mo.ui.run_button(label="Zeige Provenienzinformationen zu den Titeln in der Liste")
     mo.vstack([all_ex_button, mo.hstack([ppn_eingabe, list_button])])
     return all_ex_button, list_button, ppn_eingabe
 
