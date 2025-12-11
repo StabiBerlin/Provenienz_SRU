@@ -85,7 +85,7 @@ def _(mo):
 @app.cell
 def _(mo):
     # define switch for search-type
-    einstieg = mo.ui.dropdown(options=["Titel-Schlagwort", "Provenienz-Schlagwort"], label="Sucheinstieg")
+    einstieg = mo.ui.dropdown(options=["Titel-Schlagwort", "Provenienz-Schlagwort", "Provenienz (Phrase)"], label="Sucheinstieg")
     return (einstieg,)
 
 
@@ -162,6 +162,9 @@ def _(einstieg, querytext, text):
     elif einstieg.value == "Titel-Schlagwort":
        query = "pica.tit="+querytext.value
 
+    elif einstieg.value == "Provenienz (Phrase)":
+       query = "pica.prp="+querytext.value
+
     elif text.value != "":
         query = text.value
     return (query,)
@@ -232,7 +235,7 @@ def _(get_nr_of_records, mo, query):
 def func_parse(ET, NS, etree, pd, unicodedata):
     def parse_record(record):
 
-    
+
         record_str = ET.tostring(record, encoding='unicode')
 
         xml = etree.fromstring(unicodedata.normalize("NFC", record_str))
@@ -480,7 +483,7 @@ def _(ISIL_SRU_BASE, NS, cache, df_ex, etree, requests):
         parser = etree.XMLParser(recover=True)
         xml = etree.fromstring(response.content, parser=parser)
 
-     
+
         name_field = xml.xpath('.//ppxml:tag[@id="029A"]/ppxml:subf[@id="a"]', namespaces=NS)
         name = name_field[0].text
         if name_field:
