@@ -40,9 +40,15 @@ def _():
     from collections import Counter, defaultdict
     import plotly.graph_objects as go
     from functools import cache
+    from typing import Iterable, List, Tuple, Dict, Any
     return (
+        Any,
         Counter,
+        Dict,
         ET,
+        Iterable,
+        List,
+        Tuple,
         alt,
         cache,
         etree,
@@ -704,25 +710,50 @@ def _(df_ex, mo):
 
 
 @app.cell
-def _(Counter):
-    def provenance_to_sankey_arrays(df,
-                                    item_col='EPN',
-                                    type_col='Typ',
-                                    owner_col='Name',
-                                    provenance_types=('Vorbesitz', 'Zugang')):
+def _(mo):
+    switch_discard_nn = mo.ui.switch(label='"NN"-Einträge entfernen')
+    switch_discard_nn
+    return (switch_discard_nn,)
+
+
+@app.cell
+def _(Any, Counter, Dict, Iterable, List, Tuple, switch_discard_nn):
+    def provenance_to_sankey_arrays(
+        df: Any,
+        item_col: str = 'EPN',
+        type_col: str = 'Typ',
+        owner_col: str = 'Name',
+        provenance_types: Iterable[str] = ('Vorbesitz', 'Zugang', 'Abgang')
+    ) -> Tuple[List[str], List[int], List[int], List[int]]:
 
         # 1) Filter relevant rows (preserve df order)
         df_f = df[df[type_col].isin(provenance_types)]
 
         # 2) Build owners per item (unique per item, preserve appearance order)
-        owners_per_item = {}
+
+
+        # keep "NN", but asign running numbers
+        nn_counter = 0
+    
+        owners_per_item: Dict[Any, List[str]] = {}
         for item, sub in df_f.groupby(item_col, sort=False):
             seen = set()
             owners = []
-            for name in sub[owner_col].astype(str).tolist():
-                if name not in seen:
-                    seen.add(name)
-                    owners.append(name)
+            for raw in sub[owner_col].astype(str).tolist():
+                name = raw.strip()
+                if name == "NN":
+                    if switch_discard_nn.value==True:
+                        # remove NN entirely
+                        continue
+                    else:
+                        # keep NN but make each unique
+                        nn_counter += 1
+                        labelled = f"NN__{nn_counter}"
+                else:
+                    labelled = name
+                if labelled not in seen:
+                    seen.add(labelled)
+                    owners.append(labelled)
             if len(owners) >= 2:
                 owners_per_item[item] = owners
 
@@ -736,11 +767,13 @@ def _(Counter):
                 node_freq[o] += 1
 
         # 4) Build labels ordered by descending frequency (most frequent first)
-        labels = [n for n, _ in node_freq.most_common()]
+        labels: List[str] = [n for n, _ in node_freq.most_common()]
 
         # 5) Map labels -> indices and build src/tgt/val arrays
-        label_to_idx = {label: i for i, label in enumerate(labels)}
-        src, tgt, val = [], [], []
+        label_to_idx: Dict[str, int] = {label: i for i, label in enumerate(labels)}
+        src: List[int] = []
+        tgt: List[int] = []
+        val: List[int] = []
         for (a, b), cnt in transfers.items():
             # If an owner appears in transfers but not in node_freq (edge case), add them
             if a not in label_to_idx:
