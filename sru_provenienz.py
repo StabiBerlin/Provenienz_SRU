@@ -711,13 +711,13 @@ def _(chart_names, mo):
 
 
 @app.cell
-def _(alt, df_ex):
+def _(alt, filtered_df_ex, mo):
 
-    chart_names = (
-        alt.Chart(df_ex)
+    chart_names = mo.ui.altair_chart(
+        alt.Chart(filtered_df_ex)
         .mark_bar()
         .encode(
-            x=alt.X(field='Name', type='nominal'),
+            x=alt.X(field='Name', type='nominal', sort="-y"),
             y=alt.Y(aggregate='count', type='quantitative'),
             tooltip=[
                 alt.Tooltip(field='Name'),
@@ -734,8 +734,14 @@ def _(alt, df_ex):
             }
         )
     )
-    chart_names
+
     return (chart_names,)
+
+
+@app.cell
+def _(chart_names, mo):
+    mo.vstack([chart_names, mo.ui.table(chart_names.value)])
+    return
 
 
 @app.cell
@@ -752,8 +758,8 @@ def _(mo, transformed_df_ex):
 
 
 @app.cell
-def _(df_ex, mo):
-    transformed_df_ex = mo.ui.dataframe(df_ex)
+def _(filtered_df_ex, mo):
+    transformed_df_ex = mo.ui.dataframe(filtered_df_ex)
     transformed_df_ex
     return (transformed_df_ex,)
 
