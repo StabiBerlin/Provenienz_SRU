@@ -701,65 +701,6 @@ def _(mo, removed_df_ex, show_removed):
 @app.cell
 def _(df_ex, mo):
     mo.stop(len(df_ex)<1)
-    mo.md("""## Möglichkeit nach Institutionen und Provenienzbegriffen zu filtern""")
-
-    return
-
-
-@app.cell
-def _(df_ex, mo):
-
-    institutions = sorted(df_ex["Institution"].dropna().unique())
-    prov_terms = sorted(df_ex["Provenienzbegriff"].dropna().unique())
-    types = sorted(df_ex["Typ"].dropna().unique())
-
-    inst_filter = mo.ui.dropdown(
-        options=["Alle"] + institutions,
-        value="Alle",
-        label="Institution"
-    )
-
-    typ_filter = mo.ui.dropdown(
-        options=["Alle"] + types,
-        value="Alle",
-        label="Typ"
-    )
-
-    prov_filter = mo.ui.dropdown(
-        options=["Alle"] + prov_terms,
-        value="Alle",
-        label="Provenienzbegriff"
-    )
-
-
-
-    controls = mo.hstack([inst_filter, typ_filter, prov_filter])
-    controls
-
-    return inst_filter, prov_filter, typ_filter
-
-
-@app.cell
-def _(df_ex, inst_filter, mo, prov_filter, typ_filter):
-    filtered = df_ex.copy()
-
-    if inst_filter.value != "Alle":
-        filtered = filtered[filtered["Institution"] == inst_filter.value]
-
-    if typ_filter.value != "Alle":
-        filtered = filtered[filtered["Typ"] == typ_filter.value]
-
-    if prov_filter.value != "Alle":
-        filtered = filtered[filtered["Provenienzbegriff"] == prov_filter.value]
-
-    #filtered_df_ex = mo.ui.dataframe(filtered)
-    mo.vstack([mo.md("### Gefilterte Exemplare"), filtered])
-    return
-
-
-@app.cell
-def _(df_ex, mo):
-    mo.stop(len(df_ex)<1)
 
     mo.md("""## Möglichkeit, Listen zu generieren
     Hier eine Liste aller Vorbesitzer (Name, wenn Typ = "Vorbesitz")""")
