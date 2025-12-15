@@ -41,6 +41,8 @@ def _():
     import plotly.graph_objects as go
     from functools import cache
     from typing import Iterable, List, Tuple, Dict, Any
+    import re
+    import shlex
     return (
         Any,
         Counter,
@@ -55,7 +57,9 @@ def _():
         go,
         mo,
         pd,
+        re,
         requests,
+        shlex,
         unicodedata,
         urlencode,
     )
@@ -110,7 +114,7 @@ def _(mo):
 
     Für eine Stichwortsuche nach dem Wort "Faust" im Titel wäre bspw. der Suchstring "pica.tit=Faust" zu verwenden.  
 
-    Eine Übersicht der Indexschlüssel findet sich [hier](https://format.k10plus.de/k10plushelp.pl?cmd=idx_s). Für das Folgende werden zwei Suchschlüssel verwendet: pica.tit für die Suche in Titeln, pica.prk für die Suche nach Provenienzinformationen. 
+    Eine Übersicht der Indexschlüssel findet sich [hier](https://format.k10plus.de/k10plushelp.pl?cmd=idx_s). Für das Folgende werden drei Suchschlüssel verwendet: **pica.tit** für die Suche in **Titeln**, **pica.prk** für die Suche nach **Provenienzinformationen als Schlagwort** und **pica.prp** für eine **Phrasensuche** in einem normierten Index. 
 
     Alternativ können Sie einen Suchstring frei eingeben; dabei sind auch Operatoren wie *and* oder *not* möglich.
     """
@@ -226,11 +230,13 @@ def _(DEFAULT_RECORD_SCHEMA, K10PLUS_SRU_BASE, NS, etree, requests, urlencode):
 def _(get_nr_of_records, mo, query):
     nr_of_records = get_nr_of_records(query)
     mo.md(f"""
-    Die Suche liefert: **{nr_of_records} Ergebnisse**
+    Die Suche liefert: **{nr_of_records} Titel**
 
     Zunächst wird abgefragt, wie viele Treffer ihre Suche liefert. Im Folgenden Schritt können die Daten zu den einzelnen Treffern geladen werden. 
 
     **Beachten Sie**: Je nach Menge der Treffer kann dies eine Weile dauern. Für einen ersten Eindruck haben Sie die Möglichkeit, nur die ersten 100 Treffer zu laden. Beachten Sie bitte auch, dass jede Abfrage die Schnittstelle belastet und führen Sie nur Abfragen durch, die Sie für Ihre Arbeit benötigen.
+
+    **Beachten Sie auch**: Die Suche liefert zunächst nur **Titel**daten: Also alle Katalogeinträge, für die Ihre Suche ein Ergebnis liefert. Möglicherweise sind diesen Titel Provenienzinformationen zu mehreren Exemplaren beigefügt, die nicht alle Ihrer Suchanfrage entsprechen. Im Folgenden wird standardmäßg versucht, diese "Beifang-Exemplare" herauszufiltern. Weil dies nicht für alle Suchanfragen sauber möglich ist, haben Sie die Option, den Filter gänzlich auszuschalten, oder sich zur Überprüfung die gefilterten Exemplare anzeigen zu lassen.
 
     """
     )
@@ -340,7 +346,6 @@ def _(
 
     mo.md(f"""Es wurden **{records_loaded}** Ergebnisse geladen
 
-    Bei den geladenen Ergebnissen handelt es sich – egal, welchen Sucheinstieg Sie gewählt haben – um Titeldaten, also bibliographische Angaben, zu den Titel (Manifestationen), die Ihre Suchabfrage liefert. 
     """      
     )    
     return records, records_loaded
@@ -421,11 +426,7 @@ def _(all_ex, mo, unique_exemplare):
         f"""
     Das Ergebnisset enthält **{len(all_ex)} Aussagen** zur Provenienz, die sich auf **{len(unique_exemplare)} Exemplare** beziehen.
 
-    Wenn Sie eine Titelsuche ausgeführt haben, kann es sein, dass keine Provenienzinformationen ausgegeben werden – in diesem Fall sind schlicht zu den gefundenen Titeln keine Provenienzinformationen hinterlegt. 
-
-    Es ist auch möglich, dass Sie mehr Ergebnisse zu Exemplaren erhalten als zu den Titeldaten. Dies ist dann der Fall, wenn zu einem Titel mehrere Exemplare vorliegen.
-
-    (N.B.: Es kann vorkommen, dass im Ergebnisset die Zahl der Exemplare von der Anzahl der eindeutigen Signaturen abweicht. Dies ist etwa bei Sammelbänden der Fall, die auf eine Signatur verweisen, deren Titel aber jeweils unterschiedliche Exemplarnummern haben.)
+    Wenn Sie eine Titelsuche ausgeführt haben, kann es sein, dass keine Provenienzinformationen ausgegeben werden – in diesem Fall sind schlicht zu den gefundenen Titeln keine Provenienzinformationen hinterlegt.
     """
     )
     return
@@ -468,7 +469,185 @@ def _(all_ex_button, list_button, parse_ex, pd, ppn_eingabe, records):
 
     # Combine, putting desired columns at the end in order
     df_ex = df_ex[cols_start + cols_end]
-    return (df_ex,)
+
+    return df_ex, prov_statements
+
+
+@app.cell
+def _(df_ex, pd, query, re, shlex, unicodedata):
+    def normalize_text(s):
+        if pd.isna(s):
+            return ""
+        return unicodedata.normalize("NFC", str(s))
+
+    def token_to_regex(tok):
+        # support wildcard '*' -> '.*'
+        if "*" in tok:
+            escaped = "".join([re.escape(c) if c != "*" else "*" for c in tok])
+            return escaped.replace(r"\*", ".*")
+        return re.escape(tok)
+
+    # ensure _search_text exists (unchanged helper behaviour)
+    if "raw_361" in df_ex.columns:
+        df_ex["_search_text"] = df_ex["raw_361"].fillna("").apply(normalize_text)
+    else:
+        cols = []
+        for c in ["Provenienzbegriff", "Name", "Notiz"]:
+            if c in df_ex.columns:
+                cols.append(df_ex[c].astype(str).fillna(""))
+        if cols:
+            df_ex["_search_text"] = cols[0]
+            for extra in cols[1:]:
+                df_ex["_search_text"] = df_ex["_search_text"] + " | " + extra
+            df_ex["_search_text"] = df_ex["_search_text"].apply(normalize_text)
+        else:
+            df_ex["_search_text"] = ""
+
+    # -----------------------
+    # Quick helper: parse query into alternating term / operator sequence
+    # -----------------------
+    def parse_query_sequence(q):
+        """
+        Returns a list of items of two possible shapes:
+          - {"type":"term", "field": <field-or-None>, "term": <string>}
+          - {"type":"op", "op": one_of("and","or","not")}  # stored lowercase
+        """
+        if not q:
+            return []
+        try:
+            parts = shlex.split(str(q))
+        except Exception:
+            parts = str(q).split()
+
+        seq = []
+        field_eq_re = re.compile(r'^([\w\.\-]+)=(.*)$')  # match field=rest
+        for p in parts:
+            # case-insensitive operator detection
+            if p.casefold() in ("and", "or", "not"):
+                seq.append({"type":"op", "op": p.casefold()})
+                continue
+            m = field_eq_re.match(p)
+            if m:
+                fld = m.group(1)
+                term = m.group(2).strip().strip('"\'')
+                seq.append({"type":"term", "field": fld, "term": term})
+            else:
+                seq.append({"type":"term", "field": None, "term": p.strip().strip('"\'')})
+        return seq
+
+    # -----------------------
+    # Decide whether to use boolean parsing (only if query mentions pica.prk or pica.prp)
+    # -----------------------
+    qstr = str(query) if query is not None else ""
+    if re.search(r'(?i)\bpica\.prk\b', qstr) or re.search(r'(?i)\bpica\.prp\b', qstr):
+        # use boolean parsing restricted to provenance-related clauses
+        seq = parse_query_sequence(qstr)
+
+        # build masks for term items (only for terms that are provenance-related)
+        # provenance fields we accept explicitly:
+        prov_fields = {"pica.prk", "pica.prp"}
+
+        # helper to produce a mask for a term (search only in _search_text)
+        def mask_for_term(term_text):
+            term_norm = normalize_text(term_text)
+            regex = token_to_regex(term_norm)
+            return df_ex["_search_text"].str.contains(regex, case=False, na=False, regex=True)
+
+        # Evaluate sequence left-to-right building a boolean mask; ignore non-provenance field clauses
+        effective_items = []  # sequence filtered to only ops/terms relevant to provenance
+        i = 0
+        while i < len(seq):
+            item = seq[i]
+            if item["type"] == "op":
+                effective_items.append(item)
+                i += 1
+                continue
+            # term
+            if item["type"] == "term":
+                fld = item.get("field")
+                if fld is None or fld.lower() in prov_fields:
+                    effective_items.append(item)
+                else:
+                    # skip term with non-provenance field
+                    pass
+                i += 1
+                continue
+
+        # if no relevant term remains, set mask all-False
+        if not any(it["type"] == "term" for it in effective_items):
+            mask = pd.Series([False] * len(df_ex), index=df_ex.index)
+        else:
+            # Now evaluate left-to-right
+            cur_mask = None
+            pending_op = None
+            for itm in effective_items:
+                if itm["type"] == "op":
+                    pending_op = itm["op"]  # already lowercase
+                    continue
+                # itm is term
+                term_mask = mask_for_term(itm["term"])
+                if cur_mask is None:
+                    # handle leading NOT
+                    if pending_op == "not":
+                        cur_mask = ~term_mask
+                    else:
+                        cur_mask = term_mask
+                    pending_op = None
+                else:
+                    op = pending_op or "and"
+                    if op == "and":
+                        cur_mask = cur_mask & term_mask
+                    elif op == "or":
+                        cur_mask = cur_mask | term_mask
+                    elif op == "not":
+                        cur_mask = cur_mask & (~term_mask)
+                    pending_op = None
+            mask = cur_mask if cur_mask is not None else pd.Series([False] * len(df_ex), index=df_ex.index)
+
+        # EPN extraction: collect identifiers from rows that matched directly
+        matching_epns = set(df_ex.loc[mask & df_ex["EPN"].notna(), "EPN"].astype(str).unique())
+
+
+    else:
+        # NO provenance clause present -> DO NOT apply exemplar-level filtering
+        matching_epns = set(df_ex["EPN"].dropna().astype(str).unique())
+
+    print(matching_epns)
+    return (matching_epns,)
+
+
+@app.cell
+def _(mo, prov_statements):
+    mo.stop(len(prov_statements)<1)
+    apply_filter = mo.ui.switch(label="Exemplare werden nach Suchstring gefiltert", value=True)
+    show_removed = mo.ui.switch(label="Zeige Tabelle mit ausgeschlossenen Exemplaren", value=False)
+    mo.hstack([apply_filter,
+    show_removed])
+    return apply_filter, show_removed
+
+
+@app.cell
+def _(apply_filter, df_ex, matching_epns, mo):
+
+    if apply_filter.value:
+        # Keep ALL rows whose EPN is in matching_epns
+        filtered_df_ex = df_ex[df_ex["EPN"].astype(str).isin(matching_epns)].copy()
+        removed_df_ex = df_ex[~df_ex["EPN"].astype(str).isin(matching_epns)].copy()
+    
+    else:
+        # filter turned off -> show all rows
+        filtered_df_ex = df_ex.copy()
+        removed_df_ex = df_ex.iloc[0:0]  # empty
+        mo.md("Filter deaktiviert: Alle Exemplare werden angezeigt.")
+
+
+    return filtered_df_ex, removed_df_ex
+
+
+@app.cell
+def _(apply_filter, df_ex, matching_epns, mo):
+    mo.md(f"""Die Schnittstelle hat Provenienzinformationen zu **{len(df_ex["EPN"].unique())}** Exemplaren geliefert. Nach Anwenden des Filters, sind davon noch Angaben zu **{len(matching_epns)}** Exemplaren übrig, **{len(df_ex["EPN"].unique())-len(matching_epns)} Exemplare wurden entfernt**.""") if apply_filter.value else None
+    return
 
 
 @app.cell
@@ -506,10 +685,16 @@ def _(ISIL_SRU_BASE, NS, cache, df_ex, etree, requests):
 
 
 @app.cell
-def _(df_ex, inst_name):
+def _(df_ex, filtered_df_ex, inst_name):
     # Map the IDs in df_ex["Institution"] to Names using cache
     df_ex["Institution"] = df_ex["Institution"].map(inst_name).fillna(df_ex["Institution"])
-    df_ex
+    filtered_df_ex
+    return
+
+
+@app.cell
+def _(mo, removed_df_ex, show_removed):
+    mo.vstack([mo.md("""## Liste der Provenienzstatements, die nicht der Suchanfrage entsprechen"""), removed_df_ex]) if show_removed.value and len(removed_df_ex) > 0 else None
     return
 
 
@@ -517,12 +702,12 @@ def _(df_ex, inst_name):
 def _(df_ex, mo):
     mo.stop(len(df_ex)<1)
     mo.md("""## Möglichkeit nach Institutionen und Provenienzbegriffen zu filtern""")
+
     return
 
 
 @app.cell
 def _(df_ex, mo):
-
 
     institutions = sorted(df_ex["Institution"].dropna().unique())
     prov_terms = sorted(df_ex["Provenienzbegriff"].dropna().unique())
@@ -550,6 +735,7 @@ def _(df_ex, mo):
 
     controls = mo.hstack([inst_filter, typ_filter, prov_filter])
     controls
+
     return inst_filter, prov_filter, typ_filter
 
 
