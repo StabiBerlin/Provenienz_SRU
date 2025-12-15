@@ -717,7 +717,7 @@ def _(alt, filtered_df_ex, mo):
         alt.Chart(filtered_df_ex)
         .mark_bar()
         .encode(
-            x=alt.X(field='Name', type='nominal', sort="-y"),
+            x=alt.X(field='Name', type='nominal', sort='-y'),
             y=alt.Y(aggregate='count', type='quantitative'),
             tooltip=[
                 alt.Tooltip(field='Name'),
@@ -764,7 +764,7 @@ def _(df_ex, mo):
     mo.md(
         """
     #### Aufbereitung der Daten
-    - aus den Provenienzdaten werden diejenigen gefilter, die mindestens zwei Provenienzstatements besitzen von den Typen 'Vorbesitz' oder 'Zugang'
+    - aus den Provenienzdaten werden diejenigen gefiltert, die mindestens zwei Provenienzstatements besitzen von den Typen 'Vorbesitz', 'Zugang' oder 'Abgang'
     - bei diesen werden die angegebenen Namen extrahiert (nur unique values)
     - diese werden als Knoten in einem Netzwerk betrachtet, Abfolgen zwischen den Knoten als Kanten
 
@@ -777,8 +777,8 @@ def _(df_ex, mo):
 
 
 @app.cell
-def _(df_ex, mo):
-    mo.stop(len(df_ex)<1)
+def _(filtered_df_ex, mo):
+    mo.stop(len(filtered_df_ex)<1)
     switch_discard_nn = mo.ui.switch(label='"NN"-Einträge entfernen')
     switch_discard_nn
     return (switch_discard_nn,)
@@ -857,9 +857,9 @@ def _(Any, Counter, Dict, Iterable, List, Tuple, switch_discard_nn):
 
 
 @app.cell
-def _(df_ex, go, provenance_to_sankey_arrays):
+def _(filtered_df_ex, go, provenance_to_sankey_arrays):
 
-    labels, src, tgt, val = provenance_to_sankey_arrays(df_ex)
+    labels, src, tgt, val = provenance_to_sankey_arrays(filtered_df_ex)
 
     fig = go.Figure(data=[go.Sankey(node=dict(label=labels), link=dict(source=src, target=tgt, value=val))])
     fig.update_layout(
