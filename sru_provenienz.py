@@ -475,6 +475,8 @@ def _(all_ex_button, list_button, parse_ex, pd, ppn_eingabe, records):
 
 @app.cell
 def _(df_ex, pd, query, re, shlex, unicodedata):
+    # Try to mimic SRU-search on the returned data to filter out provenance data for copies that are returned because other copies match the query, but are themselves not interesting.
+
     def normalize_text(s):
         if pd.isna(s):
             return ""
@@ -704,7 +706,9 @@ def _(chart_names, mo):
     if chart_names:
        content = '''
     ### Visualisierungen
-    In Marimo lassen sich aus den Tabellen (bzw. Dataframes) direkt in der Oberfläche der App-Ansicht Visualisierungen generieren; hier bspw. eine Visualisierung auf Basis der in den Provenienzinformationen vorkommenden Namen.'''
+    In Marimo lassen sich aus den Tabellen (bzw. Dataframes) direkt in der Oberfläche der App-Ansicht Visualisierungen generieren; hier bspw. eine Visualisierung auf Basis der in den Provenienzinformationen vorkommenden Namen.
+
+    Sie können Balken in der Visualisierung auch markieren und sich in der Tabelle unter der Markierung die entsprechenden Provenienz-Statements anzeigen lassen.'''
 
     mo.md(content)
     return
@@ -752,15 +756,15 @@ def _(filtered_df_ex, mo):
 
 
 @app.cell
-def _(df_ex, mo):
-    mo.stop(len(df_ex)<1)
+def _(filtered_df_ex, mo):
+    mo.stop(len(filtered_df_ex)<1)
     mo.md("""## Versuch einer Netzwerkvisualisierung (experimentell)""")
     return
 
 
 @app.cell
-def _(df_ex, mo):
-    mo.stop(len(df_ex)<1)
+def _(filtered_df_ex, mo):
+    mo.stop(len(filtered_df_ex)<1)
     mo.md(
         """
     #### Aufbereitung der Daten
@@ -768,20 +772,12 @@ def _(df_ex, mo):
     - bei diesen werden die angegebenen Namen extrahiert (nur unique values)
     - diese werden als Knoten in einem Netzwerk betrachtet, Abfolgen zwischen den Knoten als Kanten
 
-    **Caveats**: Die Provenienzdaten sind häufig nicht vollständig genug, um eine wirklich lückenlose Nachverfolgung zu gewährleisten. Die Darstellung der Abfolge einzelner Vorbesitz-Stationen basiert in der Visualisierung ausschließlich auf der Reihenfolge der Provenienz-Statements; die tatsächlich Chronologie lässt sich jedoch nicht in allen Fällen rekonstruieren. Unbekannte Vorbesitzer werden in den Daten häufig zu "NN" aufgelost -- "NN" findet sich daher auch als *ein* Knoten im Diagramm, obwohl sich dahinter natürlich verschiedene Vorbesitzer verbergen können. Mitunter sind im Namensfeld zu Provenienzvorgan "Vorbesitz" auch Namen angegeben, die nicht dem Vorbesitzer entsprechen, sondern lediglich bspw. auf einen Namen verweisen, der in einem von einem Vorbesitzer hinterlassenen Provenienzmerkmal vorkommt. auch diese Namen werden im Diagramm als Knoten abgebildet.
+    **Caveats**: Die Provenienzdaten sind häufig nicht vollständig genug, um eine wirklich lückenlose Nachverfolgung zu gewährleisten. Die Darstellung der Abfolge einzelner Vorbesitz-Stationen basiert in der Visualisierung ausschließlich auf der Reihenfolge der Provenienz-Statements; die tatsächlich Chronologie lässt sich jedoch nicht in allen Fällen rekonstruieren. Unbekannte Vorbesitzer werden in den Daten häufig zu "NN" aufgelost -- "NN" werden als individuelle Knoten visualisiert, obwohl sich dahinter natürlich identische Vorbesitzer verbergen könnten; optional können "NN"-Knoten auch entfernt werden. Mitunter sind im Namensfeld zu Provenienzvorgan "Vorbesitz" auch Namen angegeben, die nicht dem Vorbesitzer entsprechen, sondern lediglich bspw. auf einen Namen verweisen, der in einem von einem Vorbesitzer hinterlassenen Provenienzmerkmal vorkommt. Auch diese Namen werden im Diagramm als Knoten abgebildet.
 
     **Die Visualisierung ist als experimentell zu verstehen und gibt keineswegs einen volständigen, lückenlosen oder auch nur korrekten Weg aller abgefragten Exemplare wieder!**
     """
     )
     return
-
-
-@app.cell
-def _(filtered_df_ex, mo):
-    mo.stop(len(filtered_df_ex)<1)
-    switch_discard_nn = mo.ui.switch(label='"NN"-Einträge entfernen')
-    switch_discard_nn
-    return (switch_discard_nn,)
 
 
 @app.cell
@@ -857,16 +853,30 @@ def _(Any, Counter, Dict, Iterable, List, Tuple, switch_discard_nn):
 
 
 @app.cell
+def _(filtered_df_ex, mo):
+    mo.stop(len(filtered_df_ex)<1)
+    switch_discard_nn = mo.ui.switch(label='"NN"-Einträge entfernen')
+    switch_discard_nn
+    return (switch_discard_nn,)
+
+
+@app.cell
 def _(filtered_df_ex, go, provenance_to_sankey_arrays):
 
     labels, src, tgt, val = provenance_to_sankey_arrays(filtered_df_ex)
 
-    fig = go.Figure(data=[go.Sankey(node=dict(label=labels), link=dict(source=src, target=tgt, value=val))])
+    fig = go.Figure(data=[go.Sankey(node=dict(label=labels), link=dict(source=src, target=tgt, value=val))]) if len(labels)>1 else None
     fig.update_layout(
-        font_size=12,
-        height=1500,
-        width = 1150# gives more room, reduces overlaps
+    font_size=12,
+    height=1500,
+    width = 1150# gives more room, reduces overlaps
     )
+    return (labels,)
+
+
+@app.cell
+def _(labels, mo):
+    mo.md("""*Im Ergebnisset befinden sich keine Provenienzangaben, die sich nach den o.g. Regeln visualisieren lassen.* Versuchen Sie eine andere Suchanfrage!""") if len(labels)<1 else None
     return
 
 
