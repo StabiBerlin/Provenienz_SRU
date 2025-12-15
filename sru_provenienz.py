@@ -745,50 +745,10 @@ def _(chart_names, mo):
 
 
 @app.cell
-def _(mo, transformed_df_ex):
-    content_transform = ""
-    if transformed_df_ex is not None:
-       content_transform = '''
-    ## Transformationen
-    Auch Transformationen der Dataframes lassen sich direkt in der Oberfläche erstellen.
-    '''
-
-    mo.md(content_transform)
-    return
-
-
-@app.cell
 def _(filtered_df_ex, mo):
     transformed_df_ex = mo.ui.dataframe(filtered_df_ex)
     transformed_df_ex
-    return (transformed_df_ex,)
-
-
-@app.cell
-def _(df_ex_next, mo):
-    content_df_ex_next = ""
-    if df_ex_next is not None:
-       content_df_ex_next = '''
-
-
-    Als Beispiel hier eine Transformation, die die Tabelle der Exemplardaten reduziert nach Provenienzinformationen, die:
-
-    1. der Institution DE-1 (Staatsbibliothek zu Berlin) zugeordnet sind,
-
-    2. Als Provenienzbegriff "Stempel" angeben und
-
-    3. über eine Notiz verfügen'''
-
-    mo.md(content_df_ex_next)
     return
-
-
-@app.cell
-def _(df_ex):
-    df_ex_next = df_ex
-    df_ex_next = df_ex_next[(df_ex_next["Institution"].eq("Staatsbibliothek zu Berlin - Preußischer Kulturbesitz, Haus Unter den Linden")) & (df_ex_next["Provenienzbegriff"].eq("Stempel")) & (df_ex_next["Notiz"].notna())]
-    df_ex_next
-    return (df_ex_next,)
 
 
 @app.cell
