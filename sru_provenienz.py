@@ -710,7 +710,8 @@ def _(df_ex, mo):
 
 
 @app.cell
-def _(mo):
+def _(df_ex, mo):
+    mo.stop(len(df_ex)<1)
     switch_discard_nn = mo.ui.switch(label='"NN"-Einträge entfernen')
     switch_discard_nn
     return (switch_discard_nn,)
@@ -734,7 +735,7 @@ def _(Any, Counter, Dict, Iterable, List, Tuple, switch_discard_nn):
 
         # keep "NN", but asign running numbers
         nn_counter = 0
-    
+
         owners_per_item: Dict[Any, List[str]] = {}
         for item, sub in df_f.groupby(item_col, sort=False):
             seen = set()
