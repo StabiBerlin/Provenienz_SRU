@@ -699,32 +699,6 @@ def _(mo, removed_df_ex, show_removed):
 
 
 @app.cell
-def _(df_ex, mo):
-    mo.stop(len(df_ex)<1)
-
-    mo.md("""## Möglichkeit, Listen zu generieren
-    Hier eine Liste aller Vorbesitzer (Name, wenn Typ = "Vorbesitz")""")
-    return
-
-
-@app.cell
-def _(df_ex, mo, pd):
-    mo.stop(len(df_ex)<1)
-
-    mo.md("Liste")
-
-    # Get unique names where Typ == "Vorbesitz"
-    unique_names_vorbesitz = df_ex.loc[df_ex["Typ"] == "Vorbesitz", "Name"].dropna().unique()
-
-    # Convert to a DataFrame for display convenience
-    unique_names_df = pd.DataFrame({"Name": unique_names_vorbesitz})
-
-    # Display as a reactive interactive table in Marimo UI
-    unique_names_df
-    return
-
-
-@app.cell
 def _(chart_names, mo):
     content = ""
     if chart_names:
