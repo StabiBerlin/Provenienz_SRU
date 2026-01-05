@@ -165,7 +165,7 @@ def _(
 
 
 @app.cell
-def _(einstieg, querytext, text):
+def _(einstieg, querytext, re, text):
     if einstieg.value == "Provenienz-Schlagwort":
         query = "pica.prk="+querytext.value
 
@@ -177,6 +177,14 @@ def _(einstieg, querytext, text):
 
     elif text.value != "":
         query = text.value
+
+    # Escape some charaters in the query (but not in the index prefix)
+    pattern = re.compile(r'(?<!pica)\.|\(|\)|<|>|/')
+
+    query = pattern.sub(lambda m: "\\" + m.group(), query)
+
+    # for debugging
+    print(query)
     return (query,)
 
 
@@ -469,7 +477,6 @@ def _(all_ex_button, list_button, parse_ex, pd, ppn_eingabe, records):
 
     # Combine, putting desired columns at the end in order
     df_ex = df_ex[cols_start + cols_end]
-
     return df_ex, prov_statements
 
 
@@ -635,13 +642,12 @@ def _(apply_filter, df_ex, matching_epns, mo):
         # Keep ALL rows whose EPN is in matching_epns
         filtered_df_ex = df_ex[df_ex["EPN"].astype(str).isin(matching_epns)].copy()
         removed_df_ex = df_ex[~df_ex["EPN"].astype(str).isin(matching_epns)].copy()
-    
+
     else:
         # filter turned off -> show all rows
         filtered_df_ex = df_ex.copy()
         removed_df_ex = df_ex.iloc[0:0]  # empty
         mo.md("Filter deaktiviert: Alle Exemplare werden angezeigt.")
-
 
     return filtered_df_ex, removed_df_ex
 
@@ -738,7 +744,6 @@ def _(alt, filtered_df_ex, mo):
             }
         )
     )
-
     return (chart_names,)
 
 
