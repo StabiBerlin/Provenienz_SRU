@@ -34,7 +34,7 @@ def _():
     import xml.etree.ElementTree as ET
     import unicodedata
     from lxml import etree
-    from urllib.parse import urlencode
+    from urllib.parse import urlencode, unquote
     import pandas as pd
     import altair as alt
     from collections import Counter, defaultdict
@@ -61,6 +61,7 @@ def _():
         requests,
         shlex,
         unicodedata,
+        unquote,
         urlencode,
     )
 
@@ -135,7 +136,9 @@ def _(
     NS,
     cache,
     etree,
+    mo,
     requests,
+    unquote,
     urlencode,
 ):
     @cache
@@ -157,10 +160,17 @@ def _(
         try:
             number_of_records = int(root.find('.//zs:numberOfRecords', namespaces=NS).text)
         except (AttributeError):
-            print(response.request.url)
-            raise ValueError("Kein numberOfRecords-Element in der Antwort -- Fehler in der Anfrage?")
-
-        return number_of_records     
+            pretty_url = unquote(response.request.url)
+            msg = (
+                f"Fehler beim Abfragen der Schnittstelle.\n\n"
+                f"Request-URL: `{pretty_url}`\n\n"
+                f"Die Antwort enthält kein `numberOfRecords`-Element — "
+                "prüfen Sie die Anfrage."
+            )
+            mo.stop(True, mo.md(msg))
+        
+        
+        return number_of_records 
     return (get_nr_of_records,)
 
 
@@ -189,7 +199,15 @@ def _(einstieg, querytext, re, text):
 
 
 @app.cell
-def _(DEFAULT_RECORD_SCHEMA, K10PLUS_SRU_BASE, NS, etree, requests, urlencode):
+def _(
+    DEFAULT_RECORD_SCHEMA,
+    K10PLUS_SRU_BASE,
+    NS,
+    etree,
+    mo,
+    requests,
+    urlencode,
+):
     def query_sru(query, max_records=100):
         base_url = K10PLUS_SRU_BASE
         params = {
@@ -202,31 +220,44 @@ def _(DEFAULT_RECORD_SCHEMA, K10PLUS_SRU_BASE, NS, etree, requests, urlencode):
         }
 
         all_records = []
-        records_to_fetch = max_records
+        records_to_fetch = int(max_records)
 
-        while records_to_fetch > 0:
-            batch_size = min(records_to_fetch, 100)  # fetch up to 100 each time
+        # number of batches
+        total_batches = (records_to_fetch + 99) // 100
+
+
+        loop_iter = mo.status.progress_bar(
+            range(total_batches),
+            title="Lade Treffer",
+            subtitle="Schnittstellenabfrage läuft…",
+            show_eta=True,
+            show_rate=True,
+        )
+
+        for _ in loop_iter:
+            if records_to_fetch <= 0:
+                break
+
+            batch_size = min(records_to_fetch, 100)
             params['maximumRecords'] = str(batch_size)
             params['startRecord'] = str(len(all_records) + 1)
 
             query_string = urlencode(params, safe='+')
             response = requests.get(base_url + '?' + query_string)
 
-            print(response.url)  # for debugging
-
+            # parse XML (robust)
             content = response.content
-
             parser = etree.XMLParser(recover=True)
             root = etree.fromstring(content, parser)
 
-            # Find records in this batch
+            # extract records for this batch
             batch_records = root.findall('.//marc:record', namespaces=NS)
 
+            # append and adjust counters
             all_records.extend(batch_records)
-
             records_to_fetch -= batch_size
 
-            # Stop if no more records returned (end of data)
+            # Stop early if server returned no records (end of data)
             if not batch_records:
                 break
 
@@ -236,6 +267,7 @@ def _(DEFAULT_RECORD_SCHEMA, K10PLUS_SRU_BASE, NS, etree, requests, urlencode):
 
 @app.cell
 def _(get_nr_of_records, mo, query):
+
     nr_of_records = get_nr_of_records(query)
     mo.md(f"""
     Die Suche liefert: **{nr_of_records} Titel**
@@ -248,6 +280,7 @@ def _(get_nr_of_records, mo, query):
 
     """
     )
+
     return (nr_of_records,)
 
 
@@ -648,7 +681,6 @@ def _(apply_filter, df_ex, matching_epns, mo):
         filtered_df_ex = df_ex.copy()
         removed_df_ex = df_ex.iloc[0:0]  # empty
         mo.md("Filter deaktiviert: Alle Exemplare werden angezeigt.")
-
     return filtered_df_ex, removed_df_ex
 
 
