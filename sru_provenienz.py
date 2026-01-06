@@ -484,7 +484,16 @@ def _(mo, records_loaded):
 
 
 @app.cell
-def _(all_ex_button, list_button, parse_ex, pd, ppn_eingabe, records):
+def _(
+    all_ex_button,
+    fetch_institution_name,
+    list_button,
+    parse_ex,
+    pd,
+    ppn_eingabe,
+    records,
+):
+    # Extract prov data for all records
     output_ex = [parse_ex(record) for record in records]
 
     if all_ex_button.value:
@@ -501,6 +510,14 @@ def _(all_ex_button, list_button, parse_ex, pd, ppn_eingabe, records):
     if "Normdatum" in df_ex.columns:
         df_ex["Normdatum"] = df_ex["Normdatum"].apply(
         lambda x: f"https://explore.gnd.network/gnd/{x.split(")",1)[1].strip()}" if pd.notna(x) else None)
+
+    # Map the IDs in df_ex["ISIL"] to Names
+    unique_ids = df_ex["Institution"].unique()
+    inst_name = {iid: fetch_institution_name(iid) for iid in unique_ids}
+    # Add new column
+    df_ex["Institution"] = df_ex["Institution"].map(inst_name).fillna(df_ex["Institution"])
+    # Replace ISIL Column
+    df_ex["Institution"]=df_ex["Institution"]
 
     # Reorder df_ex to have 'Title', 'PPN' and 'URL' as the last columns
     # Desired columns to move to the end
@@ -691,7 +708,8 @@ def _(apply_filter, df_ex, matching_epns, mo):
 
 
 @app.cell
-def _(ISIL_SRU_BASE, NS, cache, df_ex, etree, requests):
+def _(ISIL_SRU_BASE, NS, cache, etree, requests):
+    # fetch Institution Names from ISILs
     @cache
     def fetch_institution_name(inst_id):
         base_url = ISIL_SRU_BASE
@@ -715,25 +733,19 @@ def _(ISIL_SRU_BASE, NS, cache, df_ex, etree, requests):
             return name
         else:
             return inst_id
-
-    inst_name = {}
-    unique_ids = df_ex["Institution"].unique()
-
-    for inst_id in unique_ids:
-        inst_name[inst_id] = fetch_institution_name(inst_id)
-    return (inst_name,)
+    return (fetch_institution_name,)
 
 
 @app.cell
-def _(df_ex, filtered_df_ex, inst_name):
-    # Map the IDs in df_ex["Institution"] to Names using cache
-    df_ex["Institution"] = df_ex["Institution"].map(inst_name).fillna(df_ex["Institution"])
+def _(filtered_df_ex):
+    # display filtered DF
     filtered_df_ex
     return
 
 
 @app.cell
 def _(mo, removed_df_ex, show_removed):
+    # Optionally display removed Provenance Statements
     mo.vstack([mo.md("""## Liste der Provenienzstatements, die nicht der Suchanfrage entsprechen"""), removed_df_ex]) if show_removed.value and len(removed_df_ex) > 0 else None
     return
 
@@ -809,9 +821,9 @@ def _(filtered_df_ex, mo):
     - bei diesen werden die angegebenen Namen extrahiert (nur unique values)
     - diese werden als Knoten in einem Netzwerk betrachtet, Abfolgen zwischen den Knoten als Kanten
 
-    **Caveats**: Die Provenienzdaten sind häufig nicht vollständig genug, um eine wirklich lückenlose Nachverfolgung zu gewährleisten. Die Darstellung der Abfolge einzelner Vorbesitz-Stationen basiert in der Visualisierung ausschließlich auf der Reihenfolge der Provenienz-Statements; die tatsächlich Chronologie lässt sich jedoch nicht in allen Fällen rekonstruieren. Unbekannte Vorbesitzer werden in den Daten häufig zu "NN" aufgelost -- "NN" werden als individuelle Knoten visualisiert, obwohl sich dahinter natürlich identische Vorbesitzer verbergen könnten; optional können "NN"-Knoten auch entfernt werden. Mitunter sind im Namensfeld zu Provenienzvorgan "Vorbesitz" auch Namen angegeben, die nicht dem Vorbesitzer entsprechen, sondern lediglich bspw. auf einen Namen verweisen, der in einem von einem Vorbesitzer hinterlassenen Provenienzmerkmal vorkommt. Auch diese Namen werden im Diagramm als Knoten abgebildet.
+    **Caveats**: Die Provenienzdaten sind häufig nicht vollständig genug, um eine wirklich lückenlose Nachverfolgung zu gewährleisten. Die Darstellung der Abfolge einzelner Vorbesitz-Stationen basiert in der Visualisierung ausschließlich auf der Reihenfolge der Provenienz-Statements; die tatsächlich Chronologie und Abfolge lässt sich jedoch nicht in allen Fällen rekonstruieren. Unbekannte Vorbesitzer werden in den Daten i.d.R. zu "NN" aufgelöst -- "NN" werden als individuelle Knoten visualisiert, obwohl sich dahinter natürlich identische Vorbesitzer verbergen könnten; optional können "NN"-Knoten auch entfernt werden. Mitunter sind im Namensfeld zu einem Provenienzvorgang "Vorbesitz" auch Namen angegeben, die nicht dem Vorbesitzer entsprechen, sondern lediglich bspw. auf einen Namen verweisen, der in einem von einem Vorbesitzer hinterlassenen Provenienzmerkmal vorkommt. Auch diese Namen werden im Diagramm als Knoten abgebildet.
 
-    **Die Visualisierung ist als experimentell zu verstehen und gibt keineswegs einen volständigen, lückenlosen oder auch nur korrekten Weg aller abgefragten Exemplare wieder!**
+    **Die Visualisierung ist als experimentell zu verstehen und gibt keineswegs einen volständigen, lückenlosen oder notwendig korrekten Weg aller abgefragten Exemplare wieder!**
     """
     )
     return
