@@ -168,8 +168,8 @@ def _(
                 "prüfen Sie die Anfrage."
             )
             mo.stop(True, mo.md(msg))
-        
-        
+
+
         return number_of_records 
     return (get_nr_of_records,)
 
@@ -266,8 +266,10 @@ def _(
 
 
 @app.cell
-def _(get_nr_of_records, mo, query):
-
+def _(get_nr_of_records, mo, query, querytext):
+    mo.stop(
+        not (querytext.value)
+    )
     nr_of_records = get_nr_of_records(query)
     mo.md(f"""
     Die Suche liefert: **{nr_of_records} Titel**
@@ -280,7 +282,6 @@ def _(get_nr_of_records, mo, query):
 
     """
     )
-
     return (nr_of_records,)
 
 
