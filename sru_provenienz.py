@@ -266,10 +266,8 @@ def _(
 
 
 @app.cell
-def _(get_nr_of_records, mo, query, querytext):
-    mo.stop(
-        not (querytext.value)
-    )
+def _(get_nr_of_records, mo, query):
+
     nr_of_records = get_nr_of_records(query)
     mo.md(f"""
     Die Suche liefert: **{nr_of_records} Titel**
