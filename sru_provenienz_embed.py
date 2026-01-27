@@ -1,0 +1,941 @@
+import marimo
+
+__generated_with = "0.16.4"
+app = marimo.App(width="medium")
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        """
+    # Provenienzdaten explorieren
+    ## Ein Notebook für Datenabfragen an der [SRU-Schnittstelle](https://wiki.k10plus.de/spaces/K10PLUS/pages/27361342/SRU) des [k10plus](https://www.bszgbv.de/services/k10plus/)
+    """
+    )
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        """
+    Dieses Notebook ist ein [Marimo](https://docs.marimo.io/)-Notebook – es kann als App oder in der Code-Ansicht ausgeführt werden.
+    Um zwischen den Ansichten zu wechseln, drücken Sie **Strg + .** oder drücken Sie den button "Toggle app view" unten rechts.
+    """
+    )
+    return
+
+
+@app.cell
+def _():
+    # import necessary libraries
+    import marimo as mo 
+    import requests
+    import xml.etree.ElementTree as ET
+    import unicodedata
+    from lxml import etree
+    from urllib.parse import urlencode, unquote
+    import pandas as pd
+    import altair as alt
+    from collections import Counter, defaultdict
+    from functools import cache
+    from typing import Iterable, List, Tuple, Dict, Any
+    import re
+    import shlex
+    import micropip
+    return (
+        Any,
+        Counter,
+        Dict,
+        ET,
+        Iterable,
+        List,
+        Tuple,
+        alt,
+        cache,
+        etree,
+        micropip,
+        mo,
+        pd,
+        re,
+        requests,
+        shlex,
+        unicodedata,
+        unquote,
+        urlencode,
+    )
+
+
+@app.cell
+async def _(micropip):
+    await micropip.install("plotly")
+    import plotly.graph_objects as go
+    return (go,)
+
+
+@app.cell
+def _():
+    # Constants
+    # SRU base URLs
+    K10PLUS_SRU_BASE = "https://sru.k10plus.de/opac-de-627"
+    ISIL_SRU_BASE = "https://services.dnb.de/sru/bib"
+
+
+    # Default SRU parameters
+    DEFAULT_RECORD_SCHEMA = "marcxml"
+
+    # XML Namespaces
+    NS = {
+    "marc": "http://www.loc.gov/MARC21/slim",
+    "zs": "http://www.loc.gov/zing/srw/",
+    "ppxml": "http://www.oclcpica.org/xmlns/ppxml-1.0"
+    }
+    return DEFAULT_RECORD_SCHEMA, ISIL_SRU_BASE, K10PLUS_SRU_BASE, NS
+
+
+@app.cell
+def _(mo):
+    # define variable and ui-element for query text
+    querytext = mo.ui.text(placeholder="Suchbegriff...", label="Suchbegriff")
+    return (querytext,)
+
+
+@app.cell
+def _(mo):
+    # define switch for search-type
+    einstieg = mo.ui.dropdown(options=["Titel-Schlagwort", "Provenienz-Schlagwort", "Provenienz (Phrase)"], label="Sucheinstieg")
+    return (einstieg,)
+
+
+@app.cell
+def _(mo):
+    # define variable and ui-element for query text with index-terms
+    text = mo.ui.text(placeholder="Suchstring", label="Alternativ: Suchstring (z.B.: 'pica.prk=Sammlung Jochen Früh AND pica.tit=Cand*')")
+    return (text,)
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        """
+    Für die Suche über die SRU-Schnittstelle des k10plus (Basis-Url: [https://sru.k10plus.de/opac-de-627](https://sru.k10plus.de/opac-de-627)) muss die Suchanfrage u.a. spezifizieren, welches Ausgabeformat die Schnittstelle zurückgeben soll (im Folgenden wird *marcxml* verwendet) und welcher/welcher Suchschlüssel mit welchen Werten abgefragt werden sollen.
+
+    Für eine Stichwortsuche nach dem Wort "Faust" im Titel wäre bspw. der Suchstring "pica.tit=Faust" zu verwenden.  
+
+    Eine Übersicht der Indexschlüssel findet sich [hier](https://format.k10plus.de/k10plushelp.pl?cmd=idx_s). Für das Folgende werden drei Suchschlüssel verwendet: **pica.tit** für die Suche in **Titeln**, **pica.prk** für die Suche nach **Provenienzinformationen als Schlagwort** und **pica.prp** für eine **Phrasensuche** in einem normierten Index. 
+
+    Alternativ können Sie einen Suchstring frei eingeben; dabei sind auch Operatoren wie *and* oder *not* möglich.
+    """
+    )
+    return
+
+
+@app.cell
+def _(einstieg, mo, querytext, text):
+    mo.hstack([mo.vstack([einstieg, querytext]),text])
+    return
+
+
+@app.cell
+def _(
+    DEFAULT_RECORD_SCHEMA,
+    K10PLUS_SRU_BASE,
+    NS,
+    cache,
+    etree,
+    mo,
+    requests,
+    unquote,
+    urlencode,
+):
+    @cache
+    def get_nr_of_records(query):
+        base_url = K10PLUS_SRU_BASE
+        params = {
+            'recordSchema': DEFAULT_RECORD_SCHEMA,
+            'operation': 'searchRetrieve',
+            'version': '1.1',
+            'maximumRecords': '1',
+            'query': query
+        }
+        query_string = urlencode(params, safe='+')
+        response = requests.get(base_url + '?' + query_string)
+        content = response.content
+
+        parser = etree.XMLParser(recover=True)
+        root = etree.fromstring(content, parser)
+        try:
+            number_of_records = int(root.find('.//zs:numberOfRecords', namespaces=NS).text)
+        except (AttributeError):
+            pretty_url = unquote(response.request.url)
+            msg = (
+                f"Fehler beim Abfragen der Schnittstelle.\n\n"
+                f"Request-URL: `{pretty_url}`\n\n"
+                f"Die Antwort enthält kein `numberOfRecords`-Element — "
+                "prüfen Sie die Anfrage."
+            )
+            mo.stop(True, mo.md(msg))
+
+
+        return number_of_records 
+    return (get_nr_of_records,)
+
+
+@app.cell
+def _(einstieg, querytext, re, text):
+    if einstieg.value == "Provenienz-Schlagwort":
+        query = "pica.prk="+querytext.value
+
+    elif einstieg.value == "Titel-Schlagwort":
+       query = "pica.tit="+querytext.value
+
+    elif einstieg.value == "Provenienz (Phrase)":
+       query = "pica.prp="+querytext.value
+
+    elif text.value != "":
+        query = text.value
+
+    # Escape some charaters in the query (but not in the index prefix)
+    pattern = re.compile(r'(?<!pica)\.|\(|\)|<|>|/')
+
+    query = pattern.sub(lambda m: "\\" + m.group(), query)
+
+    # for debugging
+    print(query)
+    return (query,)
+
+
+@app.cell
+def _(
+    DEFAULT_RECORD_SCHEMA,
+    K10PLUS_SRU_BASE,
+    NS,
+    etree,
+    mo,
+    requests,
+    urlencode,
+):
+    def query_sru(query, max_records=100):
+        base_url = K10PLUS_SRU_BASE
+        params = {
+            'recordSchema': DEFAULT_RECORD_SCHEMA,
+            'operation': 'searchRetrieve',
+            'version': '1.1',
+            'maximumRecords': '100',   # maximum allowed per request
+            'startRecord': 1,
+            'query': query
+        }
+
+        all_records = []
+        records_to_fetch = int(max_records)
+
+        # number of batches
+        total_batches = (records_to_fetch + 99) // 100
+
+
+        loop_iter = mo.status.progress_bar(
+            range(total_batches),
+            title="Lade Treffer",
+            subtitle="Schnittstellenabfrage läuft…",
+            show_eta=True,
+            show_rate=True,
+        )
+
+        for _ in loop_iter:
+            if records_to_fetch <= 0:
+                break
+
+            batch_size = min(records_to_fetch, 100)
+            params['maximumRecords'] = str(batch_size)
+            params['startRecord'] = str(len(all_records) + 1)
+
+            query_string = urlencode(params, safe='+')
+            response = requests.get(base_url + '?' + query_string)
+
+            # parse XML (robust)
+            content = response.content
+            parser = etree.XMLParser(recover=True)
+            root = etree.fromstring(content, parser)
+
+            # extract records for this batch
+            batch_records = root.findall('.//marc:record', namespaces=NS)
+
+            # append and adjust counters
+            all_records.extend(batch_records)
+            records_to_fetch -= batch_size
+
+            # Stop early if server returned no records (end of data)
+            if not batch_records:
+                break
+
+        return all_records
+    return (query_sru,)
+
+
+@app.cell
+def _(get_nr_of_records, mo, query, querytext):
+    mo.stop(
+        not (querytext.value)
+    )
+    nr_of_records = get_nr_of_records(query)
+    mo.md(f"""
+    Die Suche liefert: **{nr_of_records} Titel**
+
+    Zunächst wird abgefragt, wie viele Treffer ihre Suche liefert. Im Folgenden Schritt können die Daten zu den einzelnen Treffern geladen werden. 
+
+    **Beachten Sie**: Je nach Menge der Treffer kann dies eine Weile dauern. Für einen ersten Eindruck haben Sie die Möglichkeit, nur die ersten 100 Treffer zu laden. Beachten Sie bitte auch, dass jede Abfrage die Schnittstelle belastet und führen Sie nur Abfragen durch, die Sie für Ihre Arbeit benötigen.
+
+    **Beachten Sie auch**: Die Suche liefert zunächst nur **Titel**daten: Also alle Katalogeinträge, für die Ihre Suche ein Ergebnis liefert. Möglicherweise sind diesen Titel Provenienzinformationen zu mehreren Exemplaren beigefügt, die nicht alle Ihrer Suchanfrage entsprechen. Im Folgenden wird standardmäßg versucht, diese "Beifang-Exemplare" herauszufiltern. Weil dies nicht für alle Suchanfragen sauber möglich ist, haben Sie die Option, den Filter gänzlich auszuschalten, oder sich zur Überprüfung die gefilterten Exemplare anzeigen zu lassen.
+
+    """
+    )
+    return (nr_of_records,)
+
+
+@app.cell
+def func_parse(ET, NS, etree, pd, unicodedata):
+    def parse_record(record):
+
+
+        record_str = ET.tostring(record, encoding='unicode')
+
+        xml = etree.fromstring(unicodedata.normalize("NFC", record_str))
+
+        #Idn
+        Idn = xml.xpath("marc:controlfield[@tag = '001']", namespaces=NS)
+        try:
+            Idn = Idn[0].text
+            URL = f"https://opac.k10plus.de/DB=2.299/PPNSET?PPN={Idn}&PRS=HOL&INDEXSET=21"
+        except:
+            Idn = pd.NA
+            URL = pd.NA
+
+
+        # Titel
+        title = xml.xpath("marc:datafield[@tag = '245']/marc:subfield[@code='a']", namespaces=NS)
+        try:
+            title = title[0].text
+        except:
+            title = pd.NA
+
+        # Autor #100-subfield4=aut
+        aut = xml.xpath("marc:datafield[@tag = '100']/marc:subfield[@code='4']", namespaces=NS)
+        try: 
+            if aut[0].text == "aut":
+                author = xml.xpath("marc:datafield[@tag ='100']/marc:subfield[@code='a']", namespaces=NS)
+            author = author[0].text
+        except:
+            author = pd.NA
+
+        # Jahr controlfield 008
+        year = xml.xpath("marc:controlfield[@tag = '008']", namespaces=NS)
+        try:
+            year = year[0].text[7:11]  # Extract year substring from position 7 to 11 (yyyy format)]
+        except:
+            year = pd.NA
+
+
+        meta_dict = {"PPN":Idn,
+                    "Titel":title,
+                    "Autor":author,
+                    "Jahr": year,
+                    "URL": URL}
+        return meta_dict
+    return (parse_record,)
+
+
+@app.cell
+def _(mo, nr_of_records):
+    mo.stop(nr_of_records <1)
+
+    all_button = mo.ui.run_button(label="Hole alle Ergebnisse")
+    hundred_button = mo.ui.run_button(label="Hole die ersten max. 100 Ergebnisse")
+    mo.vstack([hundred_button, all_button])
+
+    # Slider to select number of records in 100-step increments, max capped at 10000 for usability
+    max_limit_slider = mo.ui.slider(
+        start=0, 
+        stop=min(nr_of_records, nr_of_records), 
+        value=0, 
+        step=100, 
+        label="Anzahl der Ergebnisse (in 100er Schritten)")
+
+    load_slider_button = mo.ui.run_button(label="Ergebnisse laden")
+
+    # Arrange buttons and slider side by side
+    mo.hstack([
+        mo.vstack([hundred_button, all_button]),
+        mo.vstack([max_limit_slider, load_slider_button])
+    ])
+    return all_button, hundred_button, load_slider_button, max_limit_slider
+
+
+@app.cell
+def _(
+    all_button,
+    hundred_button,
+    load_slider_button,
+    max_limit_slider,
+    mo,
+    nr_of_records,
+    query,
+    query_sru,
+):
+    mo.stop(
+        not (hundred_button.value or all_button.value or load_slider_button.value)
+    )
+    if hundred_button.value:
+        records = query_sru(query, 100)
+    elif all_button.value:
+        records = query_sru(query, nr_of_records)
+    elif load_slider_button.value:
+        records = query_sru(query, max_limit_slider.value)
+
+    records_loaded = len(records)
+
+    mo.md(f"""Es wurden **{records_loaded}** Ergebnisse geladen
+
+    """      
+    )    
+    return records, records_loaded
+
+
+@app.cell
+def _(ET, etree, records, unicodedata):
+    def get_ex(record):
+        ns = {"marc":"http://www.loc.gov/MARC21/slim"}
+        record_str = ET.tostring(record, encoding='unicode')
+
+        xml = etree.fromstring(unicodedata.normalize("NFC", record_str))
+
+        exemplare = xml.xpath("marc:datafield[@tag = '361']/marc:subfield[@code = 'y']", namespaces=ns)
+        return [exemplar.text for exemplar in exemplare]
+
+    # Flatten the list of lists into a single list
+    all_ex = [ex for sublist in [get_ex(record) for record in records] for ex in sublist]
+
+    # get unique exemplare
+    unique_exemplare = set(all_ex)
+    return all_ex, unique_exemplare
+
+
+@app.cell
+def _(parse_record, pd, records):
+    output = [parse_record(record) for record in records]
+    df = pd.DataFrame(output)
+
+    df
+    return
+
+
+@app.cell
+def _(ET, NS, etree, unicodedata):
+    def parse_ex(record):
+
+        record_str = ET.tostring(record, encoding='unicode')
+
+        xml = etree.fromstring(unicodedata.normalize("NFC", record_str))
+
+        # Extract the ID once per record
+        controlfield_001 = xml.xpath("marc:controlfield[@tag='001']", namespaces=NS)
+        record_id = controlfield_001[0].text if controlfield_001 else None
+
+        # Extract the Title once per record
+        title_field =xml.xpath("marc:datafield[@tag = '245']/marc:subfield[@code='a']", namespaces=NS)
+        title = title_field[0].text if title_field else None
+
+        data = []
+        for field361 in xml.findall("marc:datafield[@tag='361']", namespaces=NS):
+            row_data = {}
+            for subfield in field361.findall("marc:subfield", namespaces=NS):
+                code = subfield.get("code")
+                text = subfield.text
+
+                # only keep authority file fields for GND (DE-588)
+                if code == "0":
+                    if text is not None and text.startswith("(DE-588"):
+                        row_data[code] = text
+                    else:
+                        continue
+
+                row_data[code] = text  # Use the subfield code directly as the column name
+
+            data.append(row_data)
+            row_data["PPN"] = record_id
+            row_data["Titel"] = title
+            row_data["URL"] = f"https://opac.k10plus.de/DB=2.299/PPNSET?PPN={record_id}&PRS=HOL&INDEXSET=21"
+
+        return data
+    return (parse_ex,)
+
+
+@app.cell
+def _(all_ex, mo, unique_exemplare):
+    mo.md(
+        f"""
+    Das Ergebnisset enthält **{len(all_ex)} Aussagen** zur Provenienz, die sich auf **{len(unique_exemplare)} Exemplare** beziehen.
+
+    Wenn Sie eine Titelsuche ausgeführt haben, kann es sein, dass keine Provenienzinformationen ausgegeben werden – in diesem Fall sind schlicht zu den gefundenen Titeln keine Provenienzinformationen hinterlegt.
+    """
+    )
+    return
+
+
+@app.cell
+def _(mo, records_loaded):
+    mo.stop(records_loaded<1)
+    all_ex_button = mo.ui.run_button(label="Zeige Provenienzinformationen zu allen Titeln")
+    ppn_eingabe = mo.ui.text(placeholder="PPN-Liste hier eingeben", label="Nur Informationen zu Titeln aus PPN-Liste (kommasepariert)")
+    list_button = mo.ui.run_button(label="Zeige Provenienzinformationen zu den Titeln in der Liste")
+    mo.vstack([all_ex_button, mo.hstack([ppn_eingabe, list_button])])
+    return all_ex_button, list_button, ppn_eingabe
+
+
+@app.cell
+def _(
+    all_ex_button,
+    fetch_institution_name,
+    list_button,
+    parse_ex,
+    pd,
+    ppn_eingabe,
+    records,
+):
+    # Extract prov data for all records
+    output_ex = [parse_ex(record) for record in records]
+
+    if all_ex_button.value:
+        prov_statements = [item for sublist in output_ex for item in sublist]
+    elif list_button.value:
+        ppn_list = [value.strip() for value in str(ppn_eingabe.value).split(",")]
+        prov_statements = [item for sublist in output_ex for item in sublist if item["PPN"] in ppn_list]
+
+    # Create the DataFrame
+    df_ex = pd.DataFrame(prov_statements)
+    df_ex= df_ex.rename(columns={"5":"Institution", "y": "EPN", "s": "Signatur", "o":"Typ", "a": "Name", "0":"Normdatum", "f":"Provenienzbegriff", "z": "Notiz", "u":"URL (Schlüsselseite)", "k":"Datum (strukturiert)", "l":"Datum (unstrukturiert)"})
+
+    # add URLs for GND
+    if "Normdatum" in df_ex.columns:
+        df_ex["Normdatum"] = df_ex["Normdatum"].apply(
+        lambda x: f"https://explore.gnd.network/gnd/{x.split(")",1)[1].strip()}" if pd.notna(x) else None)
+
+    # Map the IDs in df_ex["ISIL"] to Names
+    unique_ids = df_ex["Institution"].unique()
+    inst_name = {iid: fetch_institution_name(iid) for iid in unique_ids}
+    # Add new column
+    df_ex["Institution"] = df_ex["Institution"].map(inst_name).fillna(df_ex["Institution"])
+    # Replace ISIL Column
+    df_ex["Institution"]=df_ex["Institution"]
+
+    # Reorder df_ex to have 'Title', 'PPN' and 'URL' as the last columns
+    # Desired columns to move to the end
+    cols_end = ["Titel", "URL", "PPN"]
+    # Create list of columns excluding those to move
+    cols_start = [col for col in df_ex.columns if col not in cols_end]
+
+    # Combine, putting desired columns at the end in order
+    df_ex = df_ex[cols_start + cols_end]
+    return df_ex, prov_statements
+
+
+@app.cell
+def _(df_ex, pd, query, re, shlex, unicodedata):
+    # Try to mimic SRU-search on the returned data to filter out provenance data for copies that are returned because other copies match the query, but are themselves not interesting.
+
+    def normalize_text(s):
+        if pd.isna(s):
+            return ""
+        return unicodedata.normalize("NFC", str(s))
+
+    def token_to_regex(tok):
+        # support wildcard '*' -> '.*'
+        if "*" in tok:
+            escaped = "".join([re.escape(c) if c != "*" else "*" for c in tok])
+            return escaped.replace(r"\*", ".*")
+        return re.escape(tok)
+
+    # ensure _search_text exists (unchanged helper behaviour)
+    if "raw_361" in df_ex.columns:
+        df_ex["_search_text"] = df_ex["raw_361"].fillna("").apply(normalize_text)
+    else:
+        cols = []
+        for c in ["Provenienzbegriff", "Name", "Notiz"]:
+            if c in df_ex.columns:
+                cols.append(df_ex[c].astype(str).fillna(""))
+        if cols:
+            df_ex["_search_text"] = cols[0]
+            for extra in cols[1:]:
+                df_ex["_search_text"] = df_ex["_search_text"] + " | " + extra
+            df_ex["_search_text"] = df_ex["_search_text"].apply(normalize_text)
+        else:
+            df_ex["_search_text"] = ""
+
+    # -----------------------
+    # Quick helper: parse query into alternating term / operator sequence
+    # -----------------------
+    def parse_query_sequence(q):
+        """
+        Returns a list of items of two possible shapes:
+          - {"type":"term", "field": <field-or-None>, "term": <string>}
+          - {"type":"op", "op": one_of("and","or","not")}  # stored lowercase
+        """
+        if not q:
+            return []
+        try:
+            parts = shlex.split(str(q))
+        except Exception:
+            parts = str(q).split()
+
+        seq = []
+        field_eq_re = re.compile(r'^([\w\.\-]+)=(.*)$')  # match field=rest
+        for p in parts:
+            # case-insensitive operator detection
+            if p.casefold() in ("and", "or", "not"):
+                seq.append({"type":"op", "op": p.casefold()})
+                continue
+            m = field_eq_re.match(p)
+            if m:
+                fld = m.group(1)
+                term = m.group(2).strip().strip('"\'')
+                seq.append({"type":"term", "field": fld, "term": term})
+            else:
+                seq.append({"type":"term", "field": None, "term": p.strip().strip('"\'')})
+        return seq
+
+    # -----------------------
+    # Decide whether to use boolean parsing (only if query mentions pica.prk or pica.prp)
+    # -----------------------
+    qstr = str(query) if query is not None else ""
+    if re.search(r'(?i)\bpica\.prk\b', qstr) or re.search(r'(?i)\bpica\.prp\b', qstr):
+        # use boolean parsing restricted to provenance-related clauses
+        seq = parse_query_sequence(qstr)
+
+        # build masks for term items (only for terms that are provenance-related)
+        # provenance fields we accept explicitly:
+        prov_fields = {"pica.prk", "pica.prp"}
+
+        # helper to produce a mask for a term (search only in _search_text)
+        def mask_for_term(term_text):
+            term_norm = normalize_text(term_text)
+            regex = token_to_regex(term_norm)
+            return df_ex["_search_text"].str.contains(regex, case=False, na=False, regex=True)
+
+        # Evaluate sequence left-to-right building a boolean mask; ignore non-provenance field clauses
+        effective_items = []  # sequence filtered to only ops/terms relevant to provenance
+        i = 0
+        while i < len(seq):
+            item = seq[i]
+            if item["type"] == "op":
+                effective_items.append(item)
+                i += 1
+                continue
+            # term
+            if item["type"] == "term":
+                fld = item.get("field")
+                if fld is None or fld.lower() in prov_fields:
+                    effective_items.append(item)
+                else:
+                    # skip term with non-provenance field
+                    pass
+                i += 1
+                continue
+
+        # if no relevant term remains, set mask all-False
+        if not any(it["type"] == "term" for it in effective_items):
+            mask = pd.Series([False] * len(df_ex), index=df_ex.index)
+        else:
+            # Now evaluate left-to-right
+            cur_mask = None
+            pending_op = None
+            for itm in effective_items:
+                if itm["type"] == "op":
+                    pending_op = itm["op"]  # already lowercase
+                    continue
+                # itm is term
+                term_mask = mask_for_term(itm["term"])
+                if cur_mask is None:
+                    # handle leading NOT
+                    if pending_op == "not":
+                        cur_mask = ~term_mask
+                    else:
+                        cur_mask = term_mask
+                    pending_op = None
+                else:
+                    op = pending_op or "and"
+                    if op == "and":
+                        cur_mask = cur_mask & term_mask
+                    elif op == "or":
+                        cur_mask = cur_mask | term_mask
+                    elif op == "not":
+                        cur_mask = cur_mask & (~term_mask)
+                    pending_op = None
+            mask = cur_mask if cur_mask is not None else pd.Series([False] * len(df_ex), index=df_ex.index)
+
+        # EPN extraction: collect identifiers from rows that matched directly
+        matching_epns = set(df_ex.loc[mask & df_ex["EPN"].notna(), "EPN"].astype(str).unique())
+
+
+    else:
+        # NO provenance clause present -> DO NOT apply exemplar-level filtering
+        matching_epns = set(df_ex["EPN"].dropna().astype(str).unique())
+
+    print(matching_epns)
+    return (matching_epns,)
+
+
+@app.cell
+def _(mo, prov_statements):
+    mo.stop(len(prov_statements)<1)
+    apply_filter = mo.ui.switch(label="Exemplare werden nach Suchstring gefiltert", value=True)
+    show_removed = mo.ui.switch(label="Zeige Tabelle mit ausgeschlossenen Exemplaren", value=False)
+    mo.hstack([apply_filter,
+    show_removed])
+    return apply_filter, show_removed
+
+
+@app.cell
+def _(apply_filter, df_ex, matching_epns, mo):
+
+    if apply_filter.value:
+        # Keep ALL rows whose EPN is in matching_epns
+        filtered_df_ex = df_ex[df_ex["EPN"].astype(str).isin(matching_epns)].copy()
+        removed_df_ex = df_ex[~df_ex["EPN"].astype(str).isin(matching_epns)].copy()
+
+    else:
+        # filter turned off -> show all rows
+        filtered_df_ex = df_ex.copy()
+        removed_df_ex = df_ex.iloc[0:0]  # empty
+        mo.md("Filter deaktiviert: Alle Exemplare werden angezeigt.")
+    return filtered_df_ex, removed_df_ex
+
+
+@app.cell
+def _(apply_filter, df_ex, matching_epns, mo):
+    mo.md(f"""Die Schnittstelle hat Provenienzinformationen zu **{len(df_ex["EPN"].unique())}** Exemplaren geliefert. Nach Anwenden des Filters, sind davon noch Angaben zu **{len(matching_epns)}** Exemplaren übrig, **{len(df_ex["EPN"].unique())-len(matching_epns)} Exemplare wurden entfernt**.""") if apply_filter.value else None
+    return
+
+
+@app.cell
+def _(ISIL_SRU_BASE, NS, cache, etree, requests):
+    # fetch Institution Names from ISILs
+    @cache
+    def fetch_institution_name(inst_id):
+        base_url = ISIL_SRU_BASE
+        params = {
+            "version": "1.1",
+            "operation": "searchRetrieve",
+            "query": f"isil={inst_id}",
+            "recordSchema": "PicaPlus-xml"
+        }
+        response = requests.get(base_url, params=params)
+        if response.status_code != 200:
+            return inst_id # as fallback
+
+        parser = etree.XMLParser(recover=True)
+        xml = etree.fromstring(response.content, parser=parser)
+
+
+        name_field = xml.xpath('.//ppxml:tag[@id="029A"]/ppxml:subf[@id="a"]', namespaces=NS)
+        name = name_field[0].text
+        if name_field:
+            return name
+        else:
+            return inst_id
+    return (fetch_institution_name,)
+
+
+@app.cell
+def _(filtered_df_ex):
+    # display filtered DF
+    filtered_df_ex
+    return
+
+
+@app.cell
+def _(mo, removed_df_ex, show_removed):
+    # Optionally display removed Provenance Statements
+    mo.vstack([mo.md("""## Liste der Provenienzstatements, die nicht der Suchanfrage entsprechen"""), removed_df_ex]) if show_removed.value and len(removed_df_ex) > 0 else None
+    return
+
+
+@app.cell
+def _(chart_names, mo):
+    content = ""
+    if chart_names:
+       content = '''
+    ### Visualisierungen
+    In Marimo lassen sich aus den Tabellen (bzw. Dataframes) direkt in der Oberfläche der App-Ansicht Visualisierungen generieren; hier bspw. eine Visualisierung auf Basis der in den Provenienzinformationen vorkommenden Namen.
+
+    Sie können Balken in der Visualisierung auch markieren und sich in der Tabelle unter der Markierung die entsprechenden Provenienz-Statements anzeigen lassen.'''
+
+    mo.md(content)
+    return
+
+
+@app.cell
+def _(alt, filtered_df_ex, mo):
+
+    chart_names = mo.ui.altair_chart(
+        alt.Chart(filtered_df_ex)
+        .mark_bar()
+        .encode(
+            x=alt.X(field='Name', type='nominal', sort='-y'),
+            y=alt.Y(aggregate='count', type='quantitative'),
+            tooltip=[
+                alt.Tooltip(field='Name'),
+                alt.Tooltip(aggregate='count')
+            ]
+        )
+        .properties(
+            height=290,
+            width='container',
+            config={
+                'axis': {
+                    'grid': False
+                }
+            }
+        )
+    )
+    return (chart_names,)
+
+
+@app.cell
+def _(chart_names, mo):
+    mo.vstack([chart_names, mo.ui.table(chart_names.value)])
+    return
+
+
+@app.cell
+def _(filtered_df_ex, mo):
+    transformed_df_ex = mo.ui.dataframe(filtered_df_ex)
+    transformed_df_ex
+    return
+
+
+@app.cell
+def _(filtered_df_ex, mo):
+    mo.stop(len(filtered_df_ex)<1)
+    mo.md("""## Versuch einer Netzwerkvisualisierung (experimentell)""")
+    return
+
+
+@app.cell
+def _(filtered_df_ex, mo):
+    mo.stop(len(filtered_df_ex)<1)
+    mo.md(
+        """
+    #### Aufbereitung der Daten
+    - aus den Provenienzdaten werden diejenigen gefiltert, die mindestens zwei Provenienzstatements besitzen von den Typen 'Vorbesitz', 'Zugang' oder 'Abgang'
+    - bei diesen werden die angegebenen Namen extrahiert (nur unique values)
+    - diese werden als Knoten in einem Netzwerk betrachtet, Abfolgen zwischen den Knoten als Kanten
+
+    **Caveats**: Die Provenienzdaten sind häufig nicht vollständig genug, um eine wirklich lückenlose Nachverfolgung zu gewährleisten. Die Darstellung der Abfolge einzelner Vorbesitz-Stationen basiert in der Visualisierung ausschließlich auf der Reihenfolge der Provenienz-Statements; die tatsächlich Chronologie und Abfolge lässt sich jedoch nicht in allen Fällen rekonstruieren. Unbekannte Vorbesitzer werden in den Daten i.d.R. zu "NN" aufgelöst -- "NN" werden als individuelle Knoten visualisiert, obwohl sich dahinter natürlich identische Vorbesitzer verbergen könnten; optional können "NN"-Knoten auch entfernt werden. Mitunter sind im Namensfeld zu einem Provenienzvorgang "Vorbesitz" auch Namen angegeben, die nicht dem Vorbesitzer entsprechen, sondern lediglich bspw. auf einen Namen verweisen, der in einem von einem Vorbesitzer hinterlassenen Provenienzmerkmal vorkommt. Auch diese Namen werden im Diagramm als Knoten abgebildet.
+
+    **Die Visualisierung ist als experimentell zu verstehen und gibt keineswegs einen volständigen, lückenlosen oder notwendig korrekten Weg aller abgefragten Exemplare wieder!**
+    """
+    )
+    return
+
+
+@app.cell
+def _(Any, Counter, Dict, Iterable, List, Tuple, switch_discard_nn):
+    def provenance_to_sankey_arrays(
+        df: Any,
+        item_col: str = 'EPN',
+        type_col: str = 'Typ',
+        owner_col: str = 'Name',
+        provenance_types: Iterable[str] = ('Vorbesitz', 'Zugang', 'Abgang')
+    ) -> Tuple[List[str], List[int], List[int], List[int]]:
+
+        # 1) Filter relevant rows (preserve df order)
+        df_f = df[df[type_col].isin(provenance_types)]
+
+        # 2) Build owners per item (unique per item, preserve appearance order)
+
+
+        # keep "NN", but asign running numbers
+        nn_counter = 0
+
+        owners_per_item: Dict[Any, List[str]] = {}
+        for item, sub in df_f.groupby(item_col, sort=False):
+            seen = set()
+            owners = []
+            for raw in sub[owner_col].astype(str).tolist():
+                name = raw.strip()
+                if name == "NN":
+                    if switch_discard_nn.value==True:
+                        # remove NN entirely
+                        continue
+                    else:
+                        # keep NN but make each unique
+                        nn_counter += 1
+                        labelled = f"NN__{nn_counter}"
+                else:
+                    labelled = name
+                if labelled not in seen:
+                    seen.add(labelled)
+                    owners.append(labelled)
+            if len(owners) >= 2:
+                owners_per_item[item] = owners
+
+        # 3) Aggregate transfers across items
+        transfers = Counter()
+        node_freq = Counter()
+        for owners in owners_per_item.values():
+            for a, b in zip(owners, owners[1:]):
+                transfers[(a, b)] += 1
+            for o in set(owners):  # count unique appearance per item
+                node_freq[o] += 1
+
+        # 4) Build labels ordered by descending frequency (most frequent first)
+        labels: List[str] = [n for n, _ in node_freq.most_common()]
+
+        # 5) Map labels -> indices and build src/tgt/val arrays
+        label_to_idx: Dict[str, int] = {label: i for i, label in enumerate(labels)}
+        src: List[int] = []
+        tgt: List[int] = []
+        val: List[int] = []
+        for (a, b), cnt in transfers.items():
+            # If an owner appears in transfers but not in node_freq (edge case), add them
+            if a not in label_to_idx:
+                label_to_idx[a] = len(labels); labels.append(a)
+            if b not in label_to_idx:
+                label_to_idx[b] = len(labels); labels.append(b)
+            src.append(label_to_idx[a])
+            tgt.append(label_to_idx[b])
+            val.append(cnt)
+
+        return labels, src, tgt, val
+    return (provenance_to_sankey_arrays,)
+
+
+@app.cell
+def _(filtered_df_ex, mo):
+    mo.stop(len(filtered_df_ex)<1)
+    switch_discard_nn = mo.ui.switch(label='"NN"-Einträge entfernen')
+    switch_discard_nn
+    return (switch_discard_nn,)
+
+
+@app.cell
+def _(filtered_df_ex, go, provenance_to_sankey_arrays):
+
+    labels, src, tgt, val = provenance_to_sankey_arrays(filtered_df_ex)
+
+    fig = go.Figure(data=[go.Sankey(node=dict(label=labels), link=dict(source=src, target=tgt, value=val))]) if len(labels)>1 else None
+    fig.update_layout(
+    font_size=12,
+    height=1500,
+    width = 1150# gives more room, reduces overlaps
+    )
+    return (labels,)
+
+
+@app.cell
+def _(labels, mo):
+    mo.md("""*Im Ergebnisset befinden sich keine Provenienzangaben, die sich nach den o.g. Regeln visualisieren lassen.* Versuchen Sie eine andere Suchanfrage!""") if len(labels)<1 else None
+    return
+
+
+if __name__ == "__main__":
+    app.run()
