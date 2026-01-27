@@ -38,11 +38,11 @@ def _():
     import pandas as pd
     import altair as alt
     from collections import Counter, defaultdict
-    import plotly.graph_objects as go
     from functools import cache
     from typing import Iterable, List, Tuple, Dict, Any
     import re
     import shlex
+    import micropip
     return (
         Any,
         Counter,
@@ -54,7 +54,7 @@ def _():
         alt,
         cache,
         etree,
-        go,
+        micropip,
         mo,
         pd,
         re,
@@ -64,6 +64,14 @@ def _():
         unquote,
         urlencode,
     )
+
+
+@app.cell
+async def _(micropip):
+    # install plotly when running in WASM mode
+    await micropip.install("plotly")
+    import plotly.graph_objects as go
+    return (go,)
 
 
 @app.cell
