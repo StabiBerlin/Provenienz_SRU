@@ -42,7 +42,7 @@ def _():
     from typing import Iterable, List, Tuple, Dict, Any
     import re
     import shlex
-    import micropip
+    import plotly.graph_objects as go
     return (
         Any,
         Counter,
@@ -54,7 +54,7 @@ def _():
         alt,
         cache,
         etree,
-        micropip,
+        go,
         mo,
         pd,
         re,
@@ -64,14 +64,6 @@ def _():
         unquote,
         urlencode,
     )
-
-
-@app.cell
-async def _(micropip):
-    # install plotly when running in WASM mode
-    await micropip.install("plotly")
-    import plotly.graph_objects as go
-    return (go,)
 
 
 @app.cell
