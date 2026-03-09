@@ -519,7 +519,14 @@ def _(
 
     # Map the IDs in df_ex["ISIL"] to Names
     unique_ids = df_ex["Institution"].unique()
-    inst_name = {iid: fetch_institution_name(iid) for iid in unique_ids}
+    inst_name = {}
+
+    for iid in unique_ids:
+        try:
+            inst_name[iid] = fetch_institution_name(iid)
+        except IndexError:
+            # skip this iid silently
+            continue
     # Add new column
     df_ex["Institution"] = df_ex["Institution"].map(inst_name).fillna(df_ex["Institution"])
     # Replace ISIL Column
@@ -1023,18 +1030,13 @@ def _(filtered_df_ex, mo):
 @app.cell
 def _(filtered_df_ex, mo, plot_year_heatmap):
     figure, counts = plot_year_heatmap(filtered_df_ex)
-    # Wrap the Plotly figure to make it reactive. This returns a UI element.
     chart = mo.ui.plotly(figure)
-
-    # Display the reactive chart
     chart
-
     return (chart,)
 
 
 @app.cell
 def _(chart, filtered_df_ex):
-
     # Extract selected years where z > 0
     years = [
         int(item["x"])
