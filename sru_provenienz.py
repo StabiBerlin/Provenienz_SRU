@@ -42,6 +42,8 @@ def _():
     import re
     import shlex
     import plotly.graph_objects as go
+    from datetime import datetime
+    import json
 
     return (
         Any,
@@ -926,7 +928,7 @@ def _(filtered_df_ex, go, provenance_to_sankey_arrays):
     fig = go.Figure(data=[go.Sankey(node=dict(label=labels), link=dict(source=src, target=tgt, value=val))]) if len(labels)>1 else None
     fig.update_layout(
     font_size=12,
-    height=1000,
+    height=2000,
     width = 1400# gives more room, reduces overlaps
     )
     return (labels,)
@@ -935,6 +937,121 @@ def _(filtered_df_ex, go, provenance_to_sankey_arrays):
 @app.cell
 def _(labels, mo):
     mo.md("""*Im Ergebnisset befinden sich keine Provenienzangaben, die sich nach den o.g. Regeln visualisieren lassen.* Versuchen Sie eine andere Suchanfrage!""") if len(labels)<1 else None
+    return
+
+
+@app.cell
+def _(go):
+    def plot_year_heatmap(df):
+        date_col = "Datum (strukturiert)"
+        if date_col not in df.columns:
+            raise ValueError(f"Column '{date_col}' not found in DataFrame.")
+
+        years = (
+            df[date_col]
+            .astype(str)
+            .str.strip()
+            .str[:4]
+        )
+
+        # Keep only valid 4-digit years
+        years = years[years.str.match(r"^\d{4}$")].astype(int)
+
+        if years.empty:
+            raise ValueError("No valid year values found.")
+
+        # Count per year
+        counts = years.value_counts().sort_index()
+
+        # Ensure continuous year range
+        full_range = range(counts.index.min(), counts.index.max() + 1)
+        counts = counts.reindex(full_range, fill_value=0)
+
+        if years.empty:
+            raise ValueError("No valid dates found.")
+
+        # Count entries per year
+        counts = years.value_counts().sort_index()
+
+        min_year = counts.index.min()
+        max_year = counts.index.max()
+        full_range = range(min_year, max_year + 1)
+
+        counts = counts.reindex(full_range, fill_value=0)
+    
+        x = counts.index.astype(str).tolist()
+        z = [counts.values.tolist()]  # 1-row heatmap
+
+        fig = go.Figure(data=go.Heatmap(
+            z=z,
+            x=x,
+            y=["Entries"],
+            colorscale="Blues",
+            hovertemplate="Year: %{x}<br>Count: %{z}<extra></extra>"
+        ))
+
+        title = "Einträge pro Jahr"
+
+        fig.update_layout(
+            title=title,
+            xaxis_title="Jahr",
+            yaxis_visible=False,
+            template="plotly_white",
+            height=250
+        )
+
+        return fig, counts
+
+    return (plot_year_heatmap,)
+
+
+@app.cell
+def _(filtered_df_ex, mo):
+    mo.stop(len(filtered_df_ex)<1)
+    mo.md(
+        """
+    ### Zeitlicher Verlauf
+
+    Manche (lange nicht alle!) der Provenienzangaben sind mit einem konkreten Datum nachgewiesen. Die folgende Heatmap visualisiert die datierten Provenienzangaben nach Jahren. Die Visualisierung erlaubt eine Selektion und Anzeige der jeweiligen Provenienzangaben.
+
+    **Auch hier gilt: Die Visualisierung ist ebenso lückenhaft, wie die Daten, die häufig keine genauen Datumsangaben machen können.**
+    """
+    )
+    return
+
+
+@app.cell
+def _(filtered_df_ex, mo, plot_year_heatmap):
+    figure, counts = plot_year_heatmap(filtered_df_ex)
+    # Wrap the Plotly figure to make it reactive. This returns a UI element.
+    chart = mo.ui.plotly(figure)
+
+    # Display the reactive chart
+    chart
+
+    return (chart,)
+
+
+@app.cell
+def _(chart, filtered_df_ex):
+
+    # Extract selected years where z > 0
+    years = [
+        int(item["x"])
+        for item in chart.value
+        if item.get("z", 0) > 0
+    ]
+
+    years_df = filtered_df_ex[
+        filtered_df_ex["Datum (strukturiert)"]
+            .notna()
+            & filtered_df_ex["Datum (strukturiert)"]
+                .astype(str)
+                .str[:4]
+                .isin([str(y) for y in years])
+    ]
+
+    years_df
     return
 
 
