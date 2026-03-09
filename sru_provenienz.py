@@ -1,28 +1,27 @@
 import marimo
 
-__generated_with = "0.16.4"
+__generated_with = "0.20.4"
 app = marimo.App(width="medium")
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        """
-    # Provenienzdaten explorieren
-    ## Ein Notebook für Datenabfragen an der [SRU-Schnittstelle](https://wiki.k10plus.de/spaces/K10PLUS/pages/27361342/SRU) des [k10plus](https://www.bszgbv.de/services/k10plus/)
-    """
-    )
+    mo.md("""
+    # Provenienz-Explorer
+    ## Ein Notebook zur Abfrage, Exploration und Visualisierung von Provenienzdaten im Verbundkatalog [k10plus](https://www.bszgbv.de/services/k10plus/)
+    """)
     return
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        """
+    mo.md("""
+    Die Provenienzdaten werden über die [SRU-Schnittstelle](https://wiki.k10plus.de/spaces/K10PLUS/pages/27361342/SRU) des
+    k10plus abgerufen.
+
     Dieses Notebook ist ein [Marimo](https://docs.marimo.io/)-Notebook – es kann als App oder in der Code-Ansicht ausgeführt werden.
     Um zwischen den Ansichten zu wechseln, drücken Sie **Strg + .** oder drücken Sie den button "Toggle app view" unten rechts.
-    """
-    )
+    """)
     return
 
 
@@ -43,6 +42,7 @@ def _():
     import re
     import shlex
     import plotly.graph_objects as go
+
     return (
         Any,
         Counter,
@@ -71,7 +71,7 @@ def _():
     # Constants
     # SRU base URLs
     K10PLUS_SRU_BASE = "https://sru.k10plus.de/opac-de-627"
-    ISIL_SRU_BASE = "https://services.dnb.de/sru/bib"
+    ISIL_SRU_BASE = "https://services.dnb.de/sru/bib" # for resolving Institution IDs to human readable names
 
 
     # Default SRU parameters
@@ -109,17 +109,16 @@ def _(mo):
 
 @app.cell
 def _(mo):
-    mo.md(
-        """
-    Für die Suche über die SRU-Schnittstelle des k10plus (Basis-Url: [https://sru.k10plus.de/opac-de-627](https://sru.k10plus.de/opac-de-627)) muss die Suchanfrage u.a. spezifizieren, welches Ausgabeformat die Schnittstelle zurückgeben soll (im Folgenden wird *marcxml* verwendet) und welcher/welcher Suchschlüssel mit welchen Werten abgefragt werden sollen.
+    mo.md("""
+    ### Suchanfrage
+    Für die Suche über die SRU-Schnittstelle des k10plus (Basis-Url: [https://sru.k10plus.de/opac-de-627](https://sru.k10plus.de/opac-de-627)) muss die Suchanfrage u.a. spezifizieren, welcher/welche Suchschlüssel mit welchen Werten abgefragt werden sollen.
 
-    Für eine Stichwortsuche nach dem Wort "Faust" im Titel wäre bspw. der Suchstring "pica.tit=Faust" zu verwenden.  
+    Für eine Stichwortsuche nach dem Wort "Faust" im Titel wäre bspw. der Suchstring "pica.tit=Faust" zu verwenden.
 
-    Eine Übersicht der Indexschlüssel findet sich [hier](https://format.k10plus.de/k10plushelp.pl?cmd=idx_s). Für das Folgende werden drei Suchschlüssel verwendet: **pica.tit** für die Suche in **Titeln**, **pica.prk** für die Suche nach **Provenienzinformationen als Schlagwort** und **pica.prp** für eine **Phrasensuche** in einem normierten Index. 
+    Eine Übersicht der Indexschlüssel findet sich [hier](https://format.k10plus.de/k10plushelp.pl?cmd=idx_s). Für das Folgende werden drei Suchschlüssel verwendet: **pica.tit** für die Suche in **Titeln**, **pica.prk** für die Suche nach **Provenienzinformationen als Schlagwort** und **pica.prp** für eine **Phrasensuche** in einem normierten Index.
 
     Alternativ können Sie einen Suchstring frei eingeben; dabei sind auch Operatoren wie *and* oder *not* möglich.
-    """
-    )
+    """)
     return
 
 
@@ -171,6 +170,7 @@ def _(
 
 
         return number_of_records 
+
     return (get_nr_of_records,)
 
 
@@ -262,6 +262,7 @@ def _(
                 break
 
         return all_records
+
     return (query_sru,)
 
 
@@ -272,13 +273,14 @@ def _(get_nr_of_records, mo, query, querytext):
     )
     nr_of_records = get_nr_of_records(query)
     mo.md(f"""
+    ### Suchergebnisse 
     Die Suche liefert: **{nr_of_records} Titel**
 
     Zunächst wird abgefragt, wie viele Treffer ihre Suche liefert. Im Folgenden Schritt können die Daten zu den einzelnen Treffern geladen werden. 
 
     **Beachten Sie**: Je nach Menge der Treffer kann dies eine Weile dauern. Für einen ersten Eindruck haben Sie die Möglichkeit, nur die ersten 100 Treffer zu laden. Beachten Sie bitte auch, dass jede Abfrage die Schnittstelle belastet und führen Sie nur Abfragen durch, die Sie für Ihre Arbeit benötigen.
 
-    **Beachten Sie auch**: Die Suche liefert zunächst nur **Titel**daten: Also alle Katalogeinträge, für die Ihre Suche ein Ergebnis liefert. Möglicherweise sind diesen Titel Provenienzinformationen zu mehreren Exemplaren beigefügt, die nicht alle Ihrer Suchanfrage entsprechen. Im Folgenden wird standardmäßg versucht, diese "Beifang-Exemplare" herauszufiltern. Weil dies nicht für alle Suchanfragen sauber möglich ist, haben Sie die Option, den Filter gänzlich auszuschalten, oder sich zur Überprüfung die gefilterten Exemplare anzeigen zu lassen.
+    **Beachten Sie auch**: Die Suche liefert zunächst nur **Titel**daten: Also alle Katalogeinträge, für die Ihre Suche ein Ergebnis liefert. Möglicherweise sind diesen Titel Provenienzinformationen zu mehreren Exemplaren beigefügt, von denen nur eines oder nur manche Ihrer Suchanfrage entsprechen. Im Folgenden wird standardmäßg versucht, diese "Beifang-Exemplare" herauszufiltern. Weil dies nicht für alle Suchanfragen sauber möglich ist, haben Sie die Option, den Filter gänzlich auszuschalten, oder sich zur Überprüfung die gefilterten Exemplare anzeigen zu lassen. Derzeit ist der Filter nur für Suchanfragen relevant, die den Suchindex pica.prk enthalten (Provenienz-Suche).
 
     """
     )
@@ -334,6 +336,7 @@ def func_parse(ET, NS, etree, pd, unicodedata):
                     "Jahr": year,
                     "URL": URL}
         return meta_dict
+
     return (parse_record,)
 
 
@@ -459,18 +462,17 @@ def _(ET, NS, etree, unicodedata):
             row_data["URL"] = f"https://opac.k10plus.de/DB=2.299/PPNSET?PPN={record_id}&PRS=HOL&INDEXSET=21"
 
         return data
+
     return (parse_ex,)
 
 
 @app.cell
 def _(all_ex, mo, unique_exemplare):
-    mo.md(
-        f"""
+    mo.md(f"""
     Das Ergebnisset enthält **{len(all_ex)} Aussagen** zur Provenienz, die sich auf **{len(unique_exemplare)} Exemplare** beziehen.
 
     Wenn Sie eine Titelsuche ausgeführt haben, kann es sein, dass keine Provenienzinformationen ausgegeben werden – in diesem Fall sind schlicht zu den gefundenen Titeln keine Provenienzinformationen hinterlegt.
-    """
-    )
+    """)
     return
 
 
@@ -480,7 +482,8 @@ def _(mo, records_loaded):
     all_ex_button = mo.ui.run_button(label="Zeige Provenienzinformationen zu allen Titeln")
     ppn_eingabe = mo.ui.text(placeholder="PPN-Liste hier eingeben", label="Nur Informationen zu Titeln aus PPN-Liste (kommasepariert)")
     list_button = mo.ui.run_button(label="Zeige Provenienzinformationen zu den Titeln in der Liste")
-    mo.vstack([all_ex_button, mo.hstack([ppn_eingabe, list_button])])
+
+    mo.vstack([mo.md("### Provenienzinformationen extrahieren"), all_ex_button, mo.hstack([ppn_eingabe, list_button])])
     return all_ex_button, list_button, ppn_eingabe
 
 
@@ -510,7 +513,7 @@ def _(
     # add URLs for GND
     if "Normdatum" in df_ex.columns:
         df_ex["Normdatum"] = df_ex["Normdatum"].apply(
-        lambda x: f"https://explore.gnd.network/gnd/{x.split(")",1)[1].strip()}" if pd.notna(x) else None)
+        lambda x: f"https://explore.gnd.network/gnd/{x.split(')',1)[1].strip()}" if pd.notna(x) else None)
 
     # Map the IDs in df_ex["ISIL"] to Names
     unique_ids = df_ex["Institution"].unique()
@@ -541,27 +544,29 @@ def _(df_ex, pd, query, re, shlex, unicodedata):
         return unicodedata.normalize("NFC", str(s))
 
     def token_to_regex(tok):
-        # support wildcard '*' -> '.*'
-        if "*" in tok:
-            escaped = "".join([re.escape(c) if c != "*" else "*" for c in tok])
-            return escaped.replace(r"\*", ".*")
-        return re.escape(tok)
+        # First escape everything (make it regex-safe)
+        # support wildcard '*' -> '.*', '?'' -> '.'
+   
+        esc = re.escape(tok)
 
-    # ensure _search_text exists (unchanged helper behaviour)
-    if "raw_361" in df_ex.columns:
-        df_ex["_search_text"] = df_ex["raw_361"].fillna("").apply(normalize_text)
+        # Restore wildcard operators
+        esc = esc.replace(r"\*", ".*")  # *  -> zero or more characters
+        esc = esc.replace(r"\?", ".")   # ?  -> exactly one character
+
+        return esc
+
+
+    cols = []
+    for c in ["Provenienzbegriff", "Name", "Notiz"]:
+        if c in df_ex.columns:
+            cols.append(df_ex[c].astype(str).fillna(""))
+    if cols:
+        df_ex["_search_text"] = cols[0]
+        for extra in cols[1:]:
+            df_ex["_search_text"] = df_ex["_search_text"] + " | " + extra
+        df_ex["_search_text"] = df_ex["_search_text"].apply(normalize_text)
     else:
-        cols = []
-        for c in ["Provenienzbegriff", "Name", "Notiz"]:
-            if c in df_ex.columns:
-                cols.append(df_ex[c].astype(str).fillna(""))
-        if cols:
-            df_ex["_search_text"] = cols[0]
-            for extra in cols[1:]:
-                df_ex["_search_text"] = df_ex["_search_text"] + " | " + extra
-            df_ex["_search_text"] = df_ex["_search_text"].apply(normalize_text)
-        else:
-            df_ex["_search_text"] = ""
+        df_ex["_search_text"] = ""
 
     # -----------------------
     # Quick helper: parse query into alternating term / operator sequence
@@ -599,13 +604,13 @@ def _(df_ex, pd, query, re, shlex, unicodedata):
     # Decide whether to use boolean parsing (only if query mentions pica.prk or pica.prp)
     # -----------------------
     qstr = str(query) if query is not None else ""
-    if re.search(r'(?i)\bpica\.prk\b', qstr) or re.search(r'(?i)\bpica\.prp\b', qstr):
+    if re.search(r'(?i)\bpica\.prk\b', qstr):
         # use boolean parsing restricted to provenance-related clauses
         seq = parse_query_sequence(qstr)
 
         # build masks for term items (only for terms that are provenance-related)
         # provenance fields we accept explicitly:
-        prov_fields = {"pica.prk", "pica.prp"}
+        prov_fields = {"pica.prk"}
 
         # helper to produce a mask for a term (search only in _search_text)
         def mask_for_term(term_text):
@@ -734,6 +739,7 @@ def _(ISIL_SRU_BASE, NS, cache, etree, requests):
             return name
         else:
             return inst_id
+
     return (fetch_institution_name,)
 
 
@@ -747,7 +753,7 @@ def _(filtered_df_ex):
 @app.cell
 def _(mo, removed_df_ex, show_removed):
     # Optionally display removed Provenance Statements
-    mo.vstack([mo.md("""## Liste der Provenienzstatements, die nicht der Suchanfrage entsprechen"""), removed_df_ex]) if show_removed.value and len(removed_df_ex) > 0 else None
+    mo.vstack([mo.md("""### Liste der Provenienzstatements, die nicht der Suchanfrage entsprechen"""), removed_df_ex]) if show_removed.value and len(removed_df_ex) > 0 else None
     return
 
 
@@ -801,14 +807,15 @@ def _(chart_names, mo):
 @app.cell
 def _(filtered_df_ex, mo):
     transformed_df_ex = mo.ui.dataframe(filtered_df_ex)
-    transformed_df_ex
+    mo.vstack([mo.md("""### Tabelle filtern
+    In Marimo können Sie die Daten der Tabelle direkt filtern/transformieren."""), transformed_df_ex])
     return
 
 
 @app.cell
 def _(filtered_df_ex, mo):
     mo.stop(len(filtered_df_ex)<1)
-    mo.md("""## Versuch einer Netzwerkvisualisierung (experimentell)""")
+    mo.md("""### Netzwerkvisualisierung (experimentell)""")
     return
 
 
@@ -818,11 +825,11 @@ def _(filtered_df_ex, mo):
     mo.md(
         """
     #### Aufbereitung der Daten
-    - aus den Provenienzdaten werden diejenigen gefiltert, die mindestens zwei Provenienzstatements besitzen von den Typen 'Vorbesitz', 'Zugang' oder 'Abgang'
+    - aus den Provenienzdaten werden diejenigen gefiltert, die **mindestens zwei** Provenienzstatements besitzen von den Typen 'Vorbesitz', 'Zugang' oder 'Abgang'
     - bei diesen werden die angegebenen Namen extrahiert (nur unique values)
     - diese werden als Knoten in einem Netzwerk betrachtet, Abfolgen zwischen den Knoten als Kanten
 
-    **Caveats**: Die Provenienzdaten sind häufig nicht vollständig genug, um eine wirklich lückenlose Nachverfolgung zu gewährleisten. Die Darstellung der Abfolge einzelner Vorbesitz-Stationen basiert in der Visualisierung ausschließlich auf der Reihenfolge der Provenienz-Statements; die tatsächlich Chronologie und Abfolge lässt sich jedoch nicht in allen Fällen rekonstruieren. Unbekannte Vorbesitzer werden in den Daten i.d.R. zu "NN" aufgelöst -- "NN" werden als individuelle Knoten visualisiert, obwohl sich dahinter natürlich identische Vorbesitzer verbergen könnten; optional können "NN"-Knoten auch entfernt werden. Mitunter sind im Namensfeld zu einem Provenienzvorgang "Vorbesitz" auch Namen angegeben, die nicht dem Vorbesitzer entsprechen, sondern lediglich bspw. auf einen Namen verweisen, der in einem von einem Vorbesitzer hinterlassenen Provenienzmerkmal vorkommt. Auch diese Namen werden im Diagramm als Knoten abgebildet.
+    **Caveats**: Die Provenienzdaten sind häufig nicht vollständig genug, um eine wirklich lückenlose Nachverfolgung zu gewährleisten. Die Darstellung der Abfolge einzelner Vorbesitz-Stationen basiert in der Visualisierung ausschließlich auf der Reihenfolge der Provenienz-Statements; die tatsächliche Chronologie und Abfolge lässt sich jedoch nicht in allen Fällen rekonstruieren. Unbekannte Akteure werden in den Daten i.d.R. als "NN" verzeichnet – "NN" werden als individuelle Knoten visualisiert, obwohl sich dahinter auch identische Vorbesitzer verbergen könnten; optional können "NN"-Knoten auch entfernt werden. Mitunter sind im Namensfeld zu einem Provenienzvorgang "Vorbesitz" auch Namen angegeben, die nicht dem Vorbesitzer entsprechen, sondern lediglich bspw. auf einen Namen verweisen, der in einem von einem Vorbesitzer hinterlassenen Provenienzmerkmal vorkommt. Auch diese Namen werden im Diagramm als Knoten abgebildet.
 
     **Die Visualisierung ist als experimentell zu verstehen und gibt keineswegs einen volständigen, lückenlosen oder notwendig korrekten Weg aller abgefragten Exemplare wieder!**
     """
@@ -899,6 +906,7 @@ def _(Any, Counter, Dict, Iterable, List, Tuple, switch_discard_nn):
             val.append(cnt)
 
         return labels, src, tgt, val
+
     return (provenance_to_sankey_arrays,)
 
 
@@ -918,8 +926,8 @@ def _(filtered_df_ex, go, provenance_to_sankey_arrays):
     fig = go.Figure(data=[go.Sankey(node=dict(label=labels), link=dict(source=src, target=tgt, value=val))]) if len(labels)>1 else None
     fig.update_layout(
     font_size=12,
-    height=1500,
-    width = 1150# gives more room, reduces overlaps
+    height=1000,
+    width = 1400# gives more room, reduces overlaps
     )
     return (labels,)
 
