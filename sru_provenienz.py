@@ -42,6 +42,8 @@ def _():
     import re
     import shlex
     import plotly.graph_objects as go
+    from datetime import datetime
+    import json
 
     return (
         Any,
@@ -517,7 +519,14 @@ def _(
 
     # Map the IDs in df_ex["ISIL"] to Names
     unique_ids = df_ex["Institution"].unique()
-    inst_name = {iid: fetch_institution_name(iid) for iid in unique_ids}
+    inst_name = {}
+
+    for iid in unique_ids:
+        try:
+            inst_name[iid] = fetch_institution_name(iid)
+        except IndexError:
+            # skip this iid silently
+            continue
     # Add new column
     df_ex["Institution"] = df_ex["Institution"].map(inst_name).fillna(df_ex["Institution"])
     # Replace ISIL Column
@@ -926,7 +935,7 @@ def _(filtered_df_ex, go, provenance_to_sankey_arrays):
     fig = go.Figure(data=[go.Sankey(node=dict(label=labels), link=dict(source=src, target=tgt, value=val))]) if len(labels)>1 else None
     fig.update_layout(
     font_size=12,
-    height=1000,
+    height=2000,
     width = 1400# gives more room, reduces overlaps
     )
     return (labels,)
@@ -935,6 +944,71 @@ def _(filtered_df_ex, go, provenance_to_sankey_arrays):
 @app.cell
 def _(labels, mo):
     mo.md("""*Im Ergebnisset befinden sich keine Provenienzangaben, die sich nach den o.g. Regeln visualisieren lassen.* Versuchen Sie eine andere Suchanfrage!""") if len(labels)<1 else None
+    return
+
+
+@app.cell
+def _(go):
+    def plot_year_heatmap(df):
+        date_col = "Datum (strukturiert)"
+        if date_col not in df.columns:
+            raise ValueError(f"Column '{date_col}' not found in DataFrame.")
+
+        years = (
+            df[date_col]
+            .astype(str)
+            .str.strip()
+            .str[:4]
+        )
+
+        # Keep only valid 4-digit years
+        years = years[years.str.match(r"^\d{4}$")].astype(int)
+
+        if years.empty:
+            raise ValueError("No valid year values found.")
+
+        # Count per year
+        counts = years.value_counts().sort_index()
+
+        # Ensure continuous year range
+        full_range = range(counts.index.min(), counts.index.max() + 1)
+        counts = counts.reindex(full_range, fill_value=0)
+
+        if years.empty:
+            raise ValueError("No valid dates found.")
+
+        # Count entries per year
+        counts = years.value_counts().sort_index()
+
+        min_year = counts.index.min()
+        max_year = counts.index.max()
+        full_range = range(min_year, max_year + 1)
+
+        counts = counts.reindex(full_range, fill_value=0)
+    
+        x = counts.index.astype(str).tolist()
+        z = [counts.values.tolist()]  # 1-row heatmap
+
+        fig = go.Figure(data=go.Heatmap(
+            z=z,
+            x=x,
+            y=["Entries"],
+            colorscale="Blues",
+            hovertemplate="Year: %{x}<br>Count: %{z}<extra></extra>"
+        ))
+
+        title = "Einträge pro Jahr"
+
+        fig.update_layout(
+            title=title,
+            xaxis_title="Jahr",
+            yaxis_visible=False,
+            template="plotly_white",
+            height=250
+        )
+
+        return fig, counts
+
     return
 
 
