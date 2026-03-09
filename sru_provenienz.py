@@ -1009,6 +1009,51 @@ def _(go):
 
         return fig, counts
 
+    return (plot_year_heatmap,)
+
+
+@app.cell
+def _(filtered_df_ex, mo):
+    mo.stop(len(filtered_df_ex)<1)
+    mo.md(
+        """
+    ### Zeitlicher Verlauf
+
+    Manche (lange nicht alle!) der Provenienzangaben sind mit einem konkreten Datum nachgewiesen. Die folgende Heatmap visualisiert die datierten Provenienzangaben nach Jahren. Die Visualisierung erlaubt eine Selektion und Anzeige der jeweiligen Provenienzangaben.
+
+    **Auch hier gilt: Die Visualisierung ist ebenso lückenhaft, wie die Daten, die häufig keine genauen Datumsangaben machen können.**
+    """
+    )
+    return
+
+
+@app.cell
+def _(filtered_df_ex, mo, plot_year_heatmap):
+    figure, counts = plot_year_heatmap(filtered_df_ex)
+    chart = mo.ui.plotly(figure)
+    chart
+    return (chart,)
+
+
+@app.cell
+def _(chart, filtered_df_ex):
+    # Extract selected years where z > 0
+    years = [
+        int(item["x"])
+        for item in chart.value
+        if item.get("z", 0) > 0
+    ]
+
+    years_df = filtered_df_ex[
+        filtered_df_ex["Datum (strukturiert)"]
+            .notna()
+            & filtered_df_ex["Datum (strukturiert)"]
+                .astype(str)
+                .str[:4]
+                .isin([str(y) for y in years])
+    ]
+
+    years_df
     return
 
 
