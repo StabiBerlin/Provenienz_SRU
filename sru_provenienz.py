@@ -1051,10 +1051,16 @@ def _(filtered_df_ex, mo, plot_year_heatmap):
 
 
 @app.cell
+def _(chart):
+    chart.value
+    return
+
+
+@app.cell
 def _(chart, filtered_df_ex):
     # Extract selected years where z > 0
     years = [
-        int(item["x"])
+        int(item["y"]) + int(item["x"])
         for item in chart.value
         if item.get("z", 0) > 0
     ]
