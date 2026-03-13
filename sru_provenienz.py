@@ -1,27 +1,31 @@
 import marimo
 
-__generated_with = "0.20.4"
+__generated_with = "0.16.4"
 app = marimo.App(width="medium")
 
 
 @app.cell
 def _(mo):
-    mo.md("""
+    mo.md(
+        """
     # Provenienz-Explorer
     ## Ein Notebook zur Abfrage, Exploration und Visualisierung von Provenienzdaten im Verbundkatalog [k10plus](https://www.bszgbv.de/services/k10plus/)
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(mo):
-    mo.md("""
+    mo.md(
+        """
     Die Provenienzdaten werden über die [SRU-Schnittstelle](https://wiki.k10plus.de/spaces/K10PLUS/pages/27361342/SRU) des
     k10plus abgerufen.
 
     Dieses Notebook ist ein [Marimo](https://docs.marimo.io/)-Notebook – es kann als App oder in der Code-Ansicht ausgeführt werden.
     Um zwischen den Ansichten zu wechseln, drücken Sie **Strg + .** oder drücken Sie den button "Toggle app view" unten rechts.
-    """)
+    """
+    )
     return
 
 
@@ -44,7 +48,6 @@ def _():
     import plotly.graph_objects as go
     from datetime import datetime
     import json
-
     return (
         Any,
         Counter,
@@ -105,13 +108,14 @@ def _(mo):
 @app.cell
 def _(mo):
     # define variable and ui-element for query text with index-terms
-    text = mo.ui.text(placeholder="Suchstring", label="Alternativ: Suchstring (z.B.: 'pica.prk=Sammlung Jochen Früh AND pica.tit=Cand*')")
+    text = mo.ui.text(placeholder="Suchstring", label="Alternativ: Suchstring (z.B.: 'pica.prk=Sammlung Jochen Früh AND pica.tit=Cand*')", full_width=True)
     return (text,)
 
 
 @app.cell
 def _(mo):
-    mo.md("""
+    mo.md(
+        """
     ### Suchanfrage
     Für die Suche über die SRU-Schnittstelle des k10plus (Basis-Url: [https://sru.k10plus.de/opac-de-627](https://sru.k10plus.de/opac-de-627)) muss die Suchanfrage u.a. spezifizieren, welcher/welche Suchschlüssel mit welchen Werten abgefragt werden sollen.
 
@@ -120,13 +124,14 @@ def _(mo):
     Eine Übersicht der Indexschlüssel findet sich [hier](https://format.k10plus.de/k10plushelp.pl?cmd=idx_s). Für das Folgende werden drei Suchschlüssel verwendet: **pica.tit** für die Suche in **Titeln**, **pica.prk** für die Suche nach **Provenienzinformationen als Schlagwort** und **pica.prp** für eine **Phrasensuche** in einem normierten Index.
 
     Alternativ können Sie einen Suchstring frei eingeben; dabei sind auch Operatoren wie *and* oder *not* möglich.
-    """)
+    """
+    )
     return
 
 
 @app.cell
 def _(einstieg, mo, querytext, text):
-    mo.hstack([mo.vstack([einstieg, querytext]),text])
+    mo.hstack([mo.vstack([einstieg, querytext], gap=1),text], align="center")
     return
 
 
@@ -172,7 +177,6 @@ def _(
 
 
         return number_of_records 
-
     return (get_nr_of_records,)
 
 
@@ -264,7 +268,6 @@ def _(
                 break
 
         return all_records
-
     return (query_sru,)
 
 
@@ -338,7 +341,6 @@ def func_parse(ET, NS, etree, pd, unicodedata):
                     "Jahr": year,
                     "URL": URL}
         return meta_dict
-
     return (parse_record,)
 
 
@@ -356,14 +358,15 @@ def _(mo, nr_of_records):
         stop=min(nr_of_records, nr_of_records), 
         value=0, 
         step=100, 
-        label="Anzahl der Ergebnisse (in 100er Schritten)")
+        label="Anzahl der Ergebnisse (in 100er Schritten)",
+        full_width=True)
 
     load_slider_button = mo.ui.run_button(label="Ergebnisse laden")
 
     # Arrange buttons and slider side by side
     mo.hstack([
-        mo.vstack([hundred_button, all_button]),
-        mo.vstack([max_limit_slider, load_slider_button])
+        mo.vstack([hundred_button, all_button], gap=2),
+        mo.vstack([max_limit_slider, load_slider_button], gap=1)
     ])
     return all_button, hundred_button, load_slider_button, max_limit_slider
 
@@ -464,17 +467,18 @@ def _(ET, NS, etree, unicodedata):
             row_data["URL"] = f"https://opac.k10plus.de/DB=2.299/PPNSET?PPN={record_id}&PRS=HOL&INDEXSET=21"
 
         return data
-
     return (parse_ex,)
 
 
 @app.cell
 def _(all_ex, mo, unique_exemplare):
-    mo.md(f"""
+    mo.md(
+        f"""
     Das Ergebnisset enthält **{len(all_ex)} Aussagen** zur Provenienz, die sich auf **{len(unique_exemplare)} Exemplare** beziehen.
 
     Wenn Sie eine Titelsuche ausgeführt haben, kann es sein, dass keine Provenienzinformationen ausgegeben werden – in diesem Fall sind schlicht zu den gefundenen Titeln keine Provenienzinformationen hinterlegt.
-    """)
+    """
+    )
     return
 
 
@@ -482,10 +486,13 @@ def _(all_ex, mo, unique_exemplare):
 def _(mo, records_loaded):
     mo.stop(records_loaded<1)
     all_ex_button = mo.ui.run_button(label="Zeige Provenienzinformationen zu allen Titeln")
-    ppn_eingabe = mo.ui.text(placeholder="PPN-Liste hier eingeben", label="Nur Informationen zu Titeln aus PPN-Liste (kommasepariert)")
+    ppn_eingabe = mo.ui.text(placeholder="PPN-Liste hier eingeben", label="Nur Informationen zu Titeln aus PPN-Liste (kommasepariert)", full_width=True)
     list_button = mo.ui.run_button(label="Zeige Provenienzinformationen zu den Titeln in der Liste")
 
-    mo.vstack([mo.md("### Provenienzinformationen extrahieren"), all_ex_button, mo.hstack([ppn_eingabe, list_button])])
+    mo.vstack(
+        [mo.md("### Provenienzinformationen extrahieren"), mo.hstack(
+            [all_ex_button, mo.vstack(
+                [ppn_eingabe, list_button])], gap=5)], gap=1)
     return all_ex_button, list_button, ppn_eingabe
 
 
@@ -555,7 +562,7 @@ def _(df_ex, pd, query, re, shlex, unicodedata):
     def token_to_regex(tok):
         # First escape everything (make it regex-safe)
         # support wildcard '*' -> '.*', '?'' -> '.'
-   
+
         esc = re.escape(tok)
 
         # Restore wildcard operators
@@ -748,7 +755,6 @@ def _(ISIL_SRU_BASE, NS, cache, etree, requests):
             return name
         else:
             return inst_id
-
     return (fetch_institution_name,)
 
 
@@ -915,7 +921,6 @@ def _(Any, Counter, Dict, Iterable, List, Tuple, switch_discard_nn):
             val.append(cnt)
 
         return labels, src, tgt, val
-
     return (provenance_to_sankey_arrays,)
 
 
@@ -985,7 +990,7 @@ def _(go):
         full_range = range(min_year, max_year + 1)
 
         counts = counts.reindex(full_range, fill_value=0)
-    
+
         x = counts.index.astype(str).tolist()
         z = [counts.values.tolist()]  # 1-row heatmap
 
@@ -1008,7 +1013,6 @@ def _(go):
         )
 
         return fig, counts
-
     return (plot_year_heatmap,)
 
 
