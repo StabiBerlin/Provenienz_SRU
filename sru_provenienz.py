@@ -48,6 +48,7 @@ def _():
     import plotly.graph_objects as go
     from datetime import datetime
     import json
+    import math
     return (
         Any,
         Counter,
@@ -60,6 +61,7 @@ def _():
         cache,
         etree,
         go,
+        math,
         mo,
         pd,
         re,
@@ -953,8 +955,8 @@ def _(labels, mo):
 
 
 @app.cell
-def _(go):
-    def plot_year_heatmap(df):
+def _(go, math):
+    def plot_year_heatmap(df, max_row_size=50):
         date_col = "Datum (strukturiert)"
         if date_col not in df.columns:
             raise ValueError(f"Column '{date_col}' not found in DataFrame.")
@@ -965,54 +967,63 @@ def _(go):
             .str.strip()
             .str[:4]
         )
-
-        # Keep only valid 4-digit years
         years = years[years.str.match(r"^\d{4}$")].astype(int)
 
         if years.empty:
             raise ValueError("No valid year values found.")
 
-        # Count per year
         counts = years.value_counts().sort_index()
-
-        # Ensure continuous year range
         full_range = range(counts.index.min(), counts.index.max() + 1)
         counts = counts.reindex(full_range, fill_value=0)
 
-        if years.empty:
-            raise ValueError("No valid dates found.")
+        all_years = counts.index.tolist()
+        all_values = counts.values.tolist()
+        total = len(all_years)
 
-        # Count entries per year
-        counts = years.value_counts().sort_index()
+        # Determine row size
+        if total <= max_row_size:
+            row_size = total
+            n_rows = 1
+        else:
+        
+            n_rows = math.ceil(total / max_row_size)
+            row_size = math.ceil(total / n_rows)  # equal chunks, each <= max_row_size
 
-        min_year = counts.index.min()
-        max_year = counts.index.max()
-        full_range = range(min_year, max_year + 1)
+        # Pad to a multiple of row_size
+        pad = (row_size - (total % row_size)) % row_size
+        all_years_padded = all_years + [None] * pad
+        all_values_padded = all_values + [None] * pad
 
-        counts = counts.reindex(full_range, fill_value=0)
+        # Build 2D matrix
+        z, y_labels, customdata = [], [], []
+        for i in range(n_rows):
+            chunk_vals = all_values_padded[i * row_size:(i + 1) * row_size]
+            chunk_years = all_years_padded[i * row_size:(i + 1) * row_size]
+            z.append(chunk_vals)
+            y_labels.append(str(chunk_years[0]) if chunk_years[0] is not None else "")
+            customdata.append([str(y) if y is not None else "" for y in chunk_years])
 
-        x = counts.index.astype(str).tolist()
-        z = [counts.values.tolist()]  # 1-row heatmap
+        #x_labels = [str(y) if y is not None else "" for y in all_years_padded[:row_size]]
 
         fig = go.Figure(data=go.Heatmap(
             z=z,
-            x=x,
-            y=["Entries"],
+            #x=x_labels,
+            y=y_labels,
             colorscale="Blues",
-            hovertemplate="Year: %{x}<br>Count: %{z}<extra></extra>"
+            hovertemplate="Year: %{customdata}<br>Count: %{z}<extra></extra>",
+            customdata=customdata,
+            showscale=True,
         ))
 
-        title = "Einträge pro Jahr"
-
         fig.update_layout(
-            title=title,
-            xaxis_title="Jahr",
-            yaxis_visible=False,
+            title="Einträge pro Jahr",
+            yaxis_visible=n_rows > 1,
+            xaxis_visible=False,
             template="plotly_white",
-            height=250
+            height=max(250, n_rows * 60 + 100),
         )
 
-        return fig, counts
+        return fig
     return (plot_year_heatmap,)
 
 
@@ -1033,7 +1044,7 @@ def _(filtered_df_ex, mo):
 
 @app.cell
 def _(filtered_df_ex, mo, plot_year_heatmap):
-    figure, counts = plot_year_heatmap(filtered_df_ex)
+    figure = plot_year_heatmap(filtered_df_ex)
     chart = mo.ui.plotly(figure)
     chart
     return (chart,)
