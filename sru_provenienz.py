@@ -941,7 +941,7 @@ def _(filtered_df_ex, go, provenance_to_sankey_arrays):
     fig.update_layout(
     font_size=12,
     height=2000,
-    width = 1400# gives more room, reduces overlaps
+    width = 1200# gives more room, reduces overlaps
     )
     return (labels,)
 
@@ -1025,7 +1025,7 @@ def _(filtered_df_ex, mo):
 
     Manche (lange nicht alle!) der Provenienzangaben sind mit einem konkreten Datum nachgewiesen. Die folgende Heatmap visualisiert die datierten Provenienzangaben nach Jahren. Die Visualisierung erlaubt eine Selektion und Anzeige der jeweiligen Provenienzangaben.
 
-    **Auch hier gilt: Die Visualisierung ist ebenso lückenhaft, wie die Daten, die häufig keine genauen Datumsangaben machen können.**
+    **Auch hier gilt: Die Visualisierung ist ebenso lückenhaft wie die Daten, die häufig keine genauen Datumsangaben machen können.**
     """
     )
     return
