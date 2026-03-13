@@ -49,6 +49,7 @@ def _():
     from datetime import datetime
     import json
     import math
+    from plotly.subplots import make_subplots
     return (
         Any,
         Counter,
@@ -61,6 +62,7 @@ def _():
         cache,
         etree,
         go,
+        make_subplots,
         math,
         mo,
         pd,
@@ -955,7 +957,7 @@ def _(labels, mo):
 
 
 @app.cell
-def _(go, math):
+def _(go, make_subplots, math):
     def plot_year_heatmap(df, max_row_size=50):
         date_col = "Datum (strukturiert)"
         if date_col not in df.columns:
@@ -1005,22 +1007,32 @@ def _(go, math):
 
         #x_labels = [str(y) if y is not None else "" for y in all_years_padded[:row_size]]
 
-        fig = go.Figure(data=go.Heatmap(
-            z=z,
-            #x=x_labels,
-            y=y_labels,
-            colorscale="Blues",
-            hovertemplate="Year: %{customdata}<br>Count: %{z}<extra></extra>",
-            customdata=customdata,
-            showscale=True,
-        ))
+        fig = make_subplots(rows=n_rows, cols=1, shared_xaxes=False, vertical_spacing=0.02)
 
+        for i in range(n_rows):
+            fig.add_trace(
+                go.Heatmap(
+                    z=[z[i]],
+                    customdata=[customdata[i]],
+                    colorscale="Blues",
+                    showscale=(i == 0),  # only show colorbar once
+                    zmin=0,
+                    zmax=max(v for row in z for v in row if v is not None),
+                    hovertemplate="Year: %{customdata}<br>Count: %{z}<extra></extra>",
+                ),
+                row=i+1, col=1
+            )
+            fig.update_yaxes(tickvals=[0], ticktext=[y_labels[i]], row=i+1, col=1)
         fig.update_layout(
             title="Einträge pro Jahr",
-            yaxis_visible=n_rows > 1,
-            xaxis_visible=False,
             template="plotly_white",
-            height=max(250, n_rows * 60 + 100),
+            height=max(250, n_rows * 80 + 100),
+        )
+        fig.update_xaxes(visible=False)
+        fig.update_yaxes(
+            tickvals=[0],
+            ticktext=[y_labels[i]],  # won't work directly like this — see below
+            row=i+1, col=1
         )
 
         return fig
@@ -1057,10 +1069,10 @@ def _(chart):
 
 
 @app.cell
-def _(chart, filtered_df_ex):
+def _(chart, filtered_df_ex, y_labels):
     # Extract selected years where z > 0
     years = [
-        int(item["y"]) + int(item["x"])
+        int(y_labels[item["curveNumber"]]) + int(item["x"])
         for item in chart.value
         if item.get("z", 0) > 0
     ]
