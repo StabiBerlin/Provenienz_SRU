@@ -1034,9 +1034,14 @@ def _(go, make_subplots, math):
             row=i+1, col=1
         )
 
-        return fig
+        return fig, y_labels
 
     return (plot_year_heatmap,)
+
+
+@app.cell
+def _():
+    return
 
 
 @app.cell
@@ -1056,16 +1061,10 @@ def _(filtered_df_ex, mo):
 
 @app.cell
 def _(filtered_df_ex, mo, plot_year_heatmap):
-    figure = plot_year_heatmap(filtered_df_ex)
+    figure, y_labels = plot_year_heatmap(filtered_df_ex)
     chart = mo.ui.plotly(figure)
     chart
-    return (chart,)
-
-
-@app.cell
-def _(chart):
-    chart.value
-    return
+    return chart, y_labels
 
 
 @app.cell
