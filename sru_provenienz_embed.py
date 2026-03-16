@@ -45,7 +45,6 @@ def _():
     from datetime import datetime
     import json
     import math
-    from plotly.subplots import make_subplots
 
     return (
         Any,
@@ -58,7 +57,6 @@ def _():
         alt,
         cache,
         etree,
-        make_subplots,
         math,
         micropip,
         mo,
@@ -76,8 +74,9 @@ def _():
 async def _(micropip):
     await micropip.install("plotly")
     import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
 
-    return (go,)
+    return go, make_subplots
 
 
 @app.cell
