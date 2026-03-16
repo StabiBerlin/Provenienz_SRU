@@ -41,7 +41,7 @@ def _():
     from typing import Iterable, List, Tuple, Dict, Any
     import re
     import shlex
-    import plotly.graph_objects as go
+    import micropip
     from datetime import datetime
     import json
     import math
@@ -58,9 +58,9 @@ def _():
         alt,
         cache,
         etree,
-        go,
         make_subplots,
         math,
+        micropip,
         mo,
         pd,
         re,
@@ -70,6 +70,14 @@ def _():
         unquote,
         urlencode,
     )
+
+
+@app.cell
+async def _(micropip):
+    await micropip.install("plotly")
+    import plotly.graph_objects as go
+
+    return (go,)
 
 
 @app.cell
