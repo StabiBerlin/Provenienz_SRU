@@ -19,8 +19,7 @@ def _(mo):
     Die Provenienzdaten werden über die [SRU-Schnittstelle](https://wiki.k10plus.de/spaces/K10PLUS/pages/27361342/SRU) des
     k10plus abgerufen.
 
-    Dieses Notebook ist ein [Marimo](https://docs.marimo.io/)-Notebook – es kann als App oder in der Code-Ansicht ausgeführt werden.
-    Um zwischen den Ansichten zu wechseln, drücken Sie **Strg + .** oder drücken Sie den button "Toggle app view" unten rechts.
+    Dieses Notebook ist ein [Marimo](https://docs.marimo.io/)-Notebook.
     """)
     return
 
