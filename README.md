@@ -12,4 +12,4 @@ Marimo-Notebook für die Suche nach Provenienzinformationen im k10plus.
 
 
 ### Feedback
-Bei Fragen und Anregungen wenden Sie sich gerne an [lab@sbb.spk-berlin.de](mailto:lab@sbb.spk-berlin.de)
+Bei Fragen und Anregungen wenden Sie sich gerne an [lab@sbb.spk-berlin.de](mailto:lab@sbb.spk-berlin.de?subject=Provenienz-Explorer)
