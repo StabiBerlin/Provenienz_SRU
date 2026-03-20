@@ -3,13 +3,9 @@
 Marimo-Notebook für die Suche nach Provenienzinformationen im k10plus.
 
 
-### Run Notebook
+### Notebook als App ausführen
 [![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/?src=https://github.com/StabiBerlin/Provenienz_SRU/blob/main/sru_provenienz_embed.py&mode=run&show-code=false)
 
 
-### Edit Notebook
+### Notebook editieren
 [![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/?src=https://github.com/StabiBerlin/Provenienz_SRU/blob/main/sru_provenienz.py)
-
-
-### Ein kleines Test-Notebook zur Einführung in Marimo
-[![Open with marimo](https://marimo.io/shield.svg)](https://marimo.app/?src=https://github.com/StabiBerlin/Provenienz_SRU/blob/main/test_notebook.py)
