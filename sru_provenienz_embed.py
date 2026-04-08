@@ -196,7 +196,7 @@ def _(einstieg, mo, querytext, re, text):
        query = "pica.tit="+querytext.value
 
     elif einstieg.value == "Provenienz (Phrase)":
-       query = "pica.prp="+querytext.value
+       query = 'pica.prp="'+querytext.value + '"'
 
     elif text.value != "":
         query = text.value
