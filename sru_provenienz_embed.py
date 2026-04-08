@@ -1,30 +1,26 @@
 import marimo
 
-__generated_with = "0.16.4"
+__generated_with = "0.21.1"
 app = marimo.App(width="medium")
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        """
+    mo.md("""
     # Provenienz-Explorer
     ## Ein Notebook zur Abfrage, Exploration und Visualisierung von Provenienzdaten im Verbundkatalog [k10plus](https://www.bszgbv.de/services/k10plus/)
-    """
-    )
+    """)
     return
 
 
 @app.cell
 def _(mo):
-    mo.md(
-        """
+    mo.md("""
     Die Provenienzdaten werden über die [SRU-Schnittstelle](https://wiki.k10plus.de/spaces/K10PLUS/pages/27361342/SRU) des
     k10plus abgerufen.
 
     Dieses Notebook ist ein [Marimo](https://docs.marimo.io/)-Notebook.
-    """
-    )
+    """)
     return
 
 
@@ -48,6 +44,7 @@ def _():
     from datetime import datetime
     import json
     import math
+
     return (
         Any,
         Counter,
@@ -77,6 +74,7 @@ async def _(micropip):
     await micropip.install("plotly")
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
+
     return go, make_subplots
 
 
@@ -123,8 +121,7 @@ def _(mo):
 
 @app.cell
 def _(mo):
-    mo.md(
-        """
+    mo.md("""
     ### Suchanfrage
     Für die Suche über die SRU-Schnittstelle des k10plus (Basis-Url: [https://sru.k10plus.de/opac-de-627](https://sru.k10plus.de/opac-de-627)) muss die Suchanfrage u.a. spezifizieren, welcher/welche Suchschlüssel mit welchen Werten abgefragt werden sollen.
 
@@ -133,8 +130,7 @@ def _(mo):
     Eine Übersicht der Indexschlüssel findet sich [hier](https://format.k10plus.de/k10plushelp.pl?cmd=idx_s). Für das Folgende werden drei Suchschlüssel verwendet: **pica.tit** für die Suche in **Titeln**, **pica.prk** für die Suche nach **Provenienzinformationen als Schlagwort** und **pica.prp** für eine **Phrasensuche** in einem normierten Index.
 
     Alternativ können Sie einen Suchstring frei eingeben; dabei sind auch Operatoren wie *and* oder *not* möglich.
-    """
-    )
+    """)
     return
 
 
@@ -186,11 +182,13 @@ def _(
 
 
         return number_of_records 
+
     return (get_nr_of_records,)
 
 
 @app.cell
-def _(einstieg, querytext, re, text):
+def _(einstieg, mo, querytext, re, text):
+    mo.stop(not querytext.value)
     if einstieg.value == "Provenienz-Schlagwort":
         query = "pica.prk="+querytext.value
 
@@ -277,11 +275,12 @@ def _(
                 break
 
         return all_records
+
     return (query_sru,)
 
 
 @app.cell
-def _(get_nr_of_records, mo, query, querytext):
+def _(get_nr_of_records, mo, query, querytext, text):
     mo.stop(
         not (querytext.value or text.value)
     )
@@ -350,6 +349,7 @@ def func_parse(ET, NS, etree, pd, unicodedata):
                     "Jahr": year,
                     "URL": URL}
         return meta_dict
+
     return (parse_record,)
 
 
@@ -476,18 +476,17 @@ def _(ET, NS, etree, unicodedata):
             row_data["URL"] = f"https://opac.k10plus.de/DB=2.299/PPNSET?PPN={record_id}&PRS=HOL&INDEXSET=21"
 
         return data
+
     return (parse_ex,)
 
 
 @app.cell
 def _(all_ex, mo, unique_exemplare):
-    mo.md(
-        f"""
+    mo.md(f"""
     Das Ergebnisset enthält **{len(all_ex)} Aussagen** zur Provenienz, die sich auf **{len(unique_exemplare)} Exemplare** beziehen.
 
     Wenn Sie eine Titelsuche ausgeführt haben, kann es sein, dass keine Provenienzinformationen ausgegeben werden – in diesem Fall sind schlicht zu den gefundenen Titeln keine Provenienzinformationen hinterlegt.
-    """
-    )
+    """)
     return
 
 
@@ -764,6 +763,7 @@ def _(ISIL_SRU_BASE, NS, cache, etree, requests):
             return name
         else:
             return inst_id
+
     return (fetch_institution_name,)
 
 
@@ -930,6 +930,7 @@ def _(Any, Counter, Dict, Iterable, List, Tuple, switch_discard_nn):
             val.append(cnt)
 
         return labels, src, tgt, val
+
     return (provenance_to_sankey_arrays,)
 
 
@@ -1041,6 +1042,7 @@ def _(go, make_subplots, math):
         )
 
         return fig, y_labels
+
     return (plot_year_heatmap,)
 
 
