@@ -181,7 +181,8 @@ def _(
 
 
 @app.cell
-def _(einstieg, querytext, re, text):
+def _(einstieg, mo, querytext, re, text):
+    mo.stop(not querytext.value)
     if einstieg.value == "Provenienz-Schlagwort":
         query = "pica.prk="+querytext.value
 
