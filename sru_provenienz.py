@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.20.4"
+__generated_with = "0.21.1"
 app = marimo.App(width="medium")
 
 
@@ -273,7 +273,7 @@ def _(
 
 
 @app.cell
-def _(get_nr_of_records, mo, query, querytext):
+def _(get_nr_of_records, mo, query, querytext, text):
     mo.stop(
         not (querytext.value or text.value)
     )
