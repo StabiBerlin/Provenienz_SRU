@@ -537,11 +537,7 @@ def _(
     inst_name = {}
 
     for iid in unique_ids:
-        try:
-            inst_name[iid] = fetch_institution_name(iid)
-        except IndexError:
-            # skip this iid silently
-            continue
+        inst_name[iid] = fetch_institution_name(iid)
     # Add new column
     df_ex["Institution"] = df_ex["Institution"].map(inst_name).fillna(df_ex["Institution"])
     # Replace ISIL Column
@@ -742,27 +738,34 @@ def _(ISIL_SRU_BASE, NS, cache, etree, requests):
     # fetch Institution Names from ISILs
     @cache
     def fetch_institution_name(inst_id):
-        base_url = ISIL_SRU_BASE
-        params = {
-            "version": "1.1",
-            "operation": "searchRetrieve",
-            "query": f"isil={inst_id}",
-            "recordSchema": "PicaPlus-xml"
-        }
-        response = requests.get(base_url, params=params)
-        if response.status_code != 200:
-            return inst_id # as fallback
+        try:
+            params = {
+                "version": "1.1",
+                "operation": "searchRetrieve",
+                "query": f"isil={inst_id}",
+                "recordSchema": "PicaPlus-xml"
+            }
 
-        parser = etree.XMLParser(recover=True)
-        xml = etree.fromstring(response.content, parser=parser)
+            response = requests.get(ISIL_SRU_BASE, params=params)
 
+            if response.status_code != 200:
+                return inst_id
 
-        name_field = xml.xpath('.//ppxml:tag[@id="029A"]/ppxml:subf[@id="a"]', namespaces=NS)
-        name = name_field[0].text
-        if name_field:
-            return name
-        else:
-            return inst_id
+            parser = etree.XMLParser(recover=True)
+            xml = etree.fromstring(response.content, parser=parser)
+
+            name_field = xml.xpath(
+                './/ppxml:tag[@id="029A"]/ppxml:subf[@id="a"]',
+                namespaces=NS
+            )
+
+            if name_field and name_field[0].text:
+                return name_field[0].text
+
+        except Exception:
+            pass  # fallback
+
+        return inst_id
 
     return (fetch_institution_name,)
 
