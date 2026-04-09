@@ -503,11 +503,13 @@ def _(
     all_ex_button,
     fetch_institution_name,
     list_button,
+    mo,
     parse_ex,
     pd,
     ppn_eingabe,
     records,
 ):
+    mo.stop(not all_ex_button.value or list_button.value)
     # Extract prov data for all records
     output_ex = [parse_ex(record) for record in records]
 
