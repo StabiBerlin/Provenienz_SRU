@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.21.1"
+__generated_with = "0.23.3"
 app = marimo.App(width="medium")
 
 
@@ -769,7 +769,7 @@ def _(ISIL_SRU_BASE, NS, cache, etree, requests):
 @app.cell
 def _(filtered_df_ex):
     # display filtered DF
-    filtered_df_ex
+    filtered_df_ex.drop(columns=["_search_text"], errors="ignore")
     return
 
 
@@ -829,7 +829,7 @@ def _(chart_names, mo):
 
 @app.cell
 def _(filtered_df_ex, mo):
-    transformed_df_ex = mo.ui.dataframe(filtered_df_ex)
+    transformed_df_ex = mo.ui.dataframe(filtered_df_ex.drop(columns=["_search_text"], errors="ignore"))
     mo.vstack([mo.md("""### Tabelle filtern
     In Marimo können Sie die Daten der Tabelle direkt filtern/transformieren."""), transformed_df_ex])
     return
