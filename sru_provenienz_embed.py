@@ -702,7 +702,7 @@ def _(df_ex, pd, query, re, shlex, unicodedata):
         matching_epns = set(df_ex["EPN"].dropna().astype(str).unique())
 
     # print(matching_epns)
-    return (matching_epns,)
+    return (matching_epns)
 
 
 @app.cell
