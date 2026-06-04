@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.3"
+__generated_with = "0.21.1"
 app = marimo.App(width="medium")
 
 
@@ -135,6 +135,12 @@ def _(einstieg, mo, querytext, text):
 
 
 @app.cell
+def _(text):
+    text.value
+    return
+
+
+@app.cell
 def _(
     DEFAULT_RECORD_SCHEMA,
     K10PLUS_SRU_BASE,
@@ -182,7 +188,7 @@ def _(
 
 @app.cell
 def _(einstieg, mo, querytext, re, text):
-    mo.stop(not querytext.value)
+    mo.stop(not (querytext.value or text.value))
     if einstieg.value == "Provenienz-Schlagwort":
         query = "pica.prk="+querytext.value
 
