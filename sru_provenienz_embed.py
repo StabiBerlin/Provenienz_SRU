@@ -701,7 +701,7 @@ def _(df_ex, pd, query, re, shlex, unicodedata):
         # NO provenance clause present -> DO NOT apply exemplar-level filtering
         matching_epns = set(df_ex["EPN"].dropna().astype(str).unique())
 
-    print(matching_epns)
+    # print(matching_epns)
     return (matching_epns,)
 
 
