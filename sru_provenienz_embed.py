@@ -188,7 +188,7 @@ def _(
 
 @app.cell
 def _(einstieg, mo, querytext, re, text):
-    mo.stop(not querytext.value)
+    mo.stop(not (text.value or querytext.value))
     if einstieg.value == "Provenienz-Schlagwort":
         query = "pica.prk="+querytext.value
 
@@ -207,7 +207,7 @@ def _(einstieg, mo, querytext, re, text):
     query = pattern.sub(lambda m: "\\" + m.group(), query)
 
     # for debugging
-    print(query)
+    # print(query)
     return (query,)
 
 
