@@ -609,7 +609,7 @@ def _(df_ex, pd, query, re, shlex, unicodedata):
         seq = []
 
         # match field=rest
-        field_eq_re = re.compile(r'^([\w\.\-]+)=(.*)$')  
+        field_eq_re = re.compile(r"^([\w\.\-]+)=(.*)$")  
         for p in parts:
             # case-insensitive operator detection
             if p.casefold() in ("and", "or", "not"):
