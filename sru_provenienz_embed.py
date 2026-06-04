@@ -593,36 +593,7 @@ def _(df_ex, pd, query, re, shlex, unicodedata):
     # -----------------------
     # Quick helper: parse query into alternating term / operator sequence
     # -----------------------
-    def parse_query_sequence(q):
-        """
-        Returns a list of items of two possible shapes:
-          - {"type":"term", "field": <field-or-None>, "term": <string>}
-          - {"type":"op", "op": one_of("and","or","not")}  # stored lowercase
-        """
-        if not q:
-            return []
-        try:
-            parts = shlex.split(str(q))
-        except Exception:
-            parts = str(q).split()
 
-        seq = []
-
-        # match field=rest
-        field_eq_re = re.compile(r"^([\w\.\-]+)=(.*)$")  
-        for p in parts:
-            # case-insensitive operator detection
-            if p.casefold() in ("and", "or", "not"):
-                seq.append({"type":"op", "op": p.casefold()})
-                continue
-            m = field_eq_re.match(p)
-            if m:
-                fld = m.group(1)
-                term = m.group(2).strip().strip('"\'')
-                seq.append({"type":"term", "field": fld, "term": term})
-            else:
-                seq.append({"type":"term", "field": None, "term": p.strip().strip('"\'')})
-        return seq
 
     # -----------------------
     # Decide whether to use boolean parsing (only if query mentions pica.prk or pica.prp)
